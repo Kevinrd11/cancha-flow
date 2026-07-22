@@ -46,5 +46,12 @@ export async function POST(request: Request) {
     requestFingerprint: rateLimit.fingerprint,
   });
 
+  if (error) {
+    return NextResponse.json(
+      { error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte." },
+      { status: 503 },
+    );
+  }
+
   return NextResponse.json({ message: GENERIC_MESSAGE });
 }

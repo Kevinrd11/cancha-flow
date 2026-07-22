@@ -6,6 +6,8 @@ import { getAppUrl, hasSupabaseAdminEnv, hasSupabaseEnv, isDemoMode } from "@/li
 import { createAdminSupabaseClient, createIsolatedSupabaseClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { sanitizeText } from "@/lib/utils";
 
+const EMAIL_DELIVERY_ERROR = "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.";
+
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   const parsed = onboardingSchema.safeParse(await request.json().catch(() => null));
@@ -38,11 +40,15 @@ export async function POST(request: Request) {
       }
 
       const resendClient = await createServerSupabaseClient();
-      await resendClient.auth.resend({
+      const { error: resendError } = await resendClient.auth.resend({
         type: "signup",
         email: input.email,
         options: { emailRedirectTo: `${getAppUrl()}/auth/callback` },
       });
+      if (resendError) {
+        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingOwner.id, businessId: existing.id });
+        return NextResponse.json({ error: EMAIL_DELIVERY_ERROR }, { status: 503 });
+      }
       await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingOwner.id, businessId: existing.id });
       return NextResponse.json({
         publicUrl,
@@ -71,7 +77,7 @@ export async function POST(request: Request) {
   });
   if (authError || !authData.user) {
     await recordSecurityEvent({ action: "auth.register", outcome: "failure" });
-    return NextResponse.json({ requiresEmailVerification: true }, { status: 202 });
+    return NextResponse.json({ error: EMAIL_DELIVERY_ERROR }, { status: 503 });
   }
 
   const isNewIdentity = (authData.user.identities?.length ?? 0) > 0;

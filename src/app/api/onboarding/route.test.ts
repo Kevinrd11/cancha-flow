@@ -107,6 +107,18 @@ describe("POST /api/onboarding", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("complete_business_onboarding", expect.objectContaining({ p_user_id: "new-user", p_slug: "cancha-norte" }));
   });
 
+  it("no afirma que envió el correo cuando Supabase rechaza la entrega", async () => {
+    state.signUpResult = { data: { user: null, session: null }, error: { message: "Email address not authorized" } };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("convierte en propietario una cuenta de cliente confirmada que acredita su contraseña", async () => {
     state.signUpResult = { data: { user: { id: "masked-user", identities: [] }, session: null }, error: null };
     state.signInResult = { data: { user: { id: "existing-customer", email_confirmed_at: "2026-07-22T00:00:00Z" } }, error: null };
@@ -138,6 +150,20 @@ describe("POST /api/onboarding", () => {
       type: "signup",
       email: "ana@example.com",
       options: { emailRedirectTo: "https://canchaflow.example/auth/callback" },
+    });
+  });
+
+  it("informa un fallo al reenviar en vez de mostrar un éxito falso", async () => {
+    state.existingSlug = { id: "business-id" };
+    state.membership = { user_id: "owner-user" };
+    state.ownerLookup = { id: "owner-user", email: "ana@example.com" };
+    mocks.resend.mockResolvedValueOnce({ error: { message: "Email address not authorized" } });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.",
     });
   });
 });

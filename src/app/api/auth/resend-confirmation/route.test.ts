@@ -45,6 +45,17 @@ describe("POST /api/auth/resend-confirmation", () => {
     });
   });
 
+  it("no muestra éxito cuando el proveedor rechaza el correo", async () => {
+    state.resend.mockResolvedValueOnce({ error: { message: "Email address not authorized" } });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.",
+    });
+  });
+
   it("limita los reenvíos repetidos", async () => {
     state.allowed = false;
 

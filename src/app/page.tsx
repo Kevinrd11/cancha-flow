@@ -2,179 +2,87 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  CalendarCheck,
+  CalendarCheck2,
   Check,
   Clock3,
   MapPin,
   MessageCircle,
+  Search,
   ShieldCheck,
-  Sparkles,
-  Users,
-  WalletCards,
+  Store,
+  Zap,
 } from "lucide-react";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
-import { getBusinessSettings } from "@/lib/business-data";
-import { formatCurrency } from "@/lib/utils";
+import { CourtCard } from "@/components/courts/court-card";
+import { MarketingFooter } from "@/components/marketing/marketing-footer";
+import { MarketingHeader } from "@/components/marketing/marketing-header";
+import { demoCourts, popularSectors } from "@/lib/courts-data";
+import { todayInCostaRica } from "@/lib/utils";
 
-const gallery = [
-  {
-    src: "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1200&q=85",
-    alt: "Balón de fútbol sobre césped natural",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=900&q=85",
-    alt: "Jugadores disputando un partido de fútbol",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=900&q=85",
-    alt: "Partido de fútbol en una cancha iluminada",
-  },
-];
-
-export default async function Home() {
-  const settings = await getBusinessSettings();
+export default function Home() {
+  const featured = demoCourts.filter((court) => court.featured);
+  const today = todayInCostaRica();
   return (
-    <main>
-      <section className="relative min-h-[760px] overflow-hidden bg-forest text-white sm:min-h-[720px]">
-        <Image
-          src={gallery[0].src}
-          alt={gallery[0].alt}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-center opacity-55"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,28,18,.96)_0%,rgba(8,38,25,.72)_52%,rgba(8,38,25,.32)_100%)]" />
-        <div className="field-lines absolute inset-0 opacity-50" />
-        <SiteHeader settings={settings} />
-        <div className="relative z-10 mx-auto flex min-h-[760px] max-w-7xl items-center px-4 pb-20 pt-32 sm:min-h-[720px] sm:px-6">
-          <div className="max-w-3xl">
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold backdrop-blur">
-              <span className="size-2 rounded-full bg-lime shadow-[0_0_0_4px_rgba(199,240,0,.18)]" />
-              Reservas abiertas todos los días
-            </p>
-            <h1 className="display text-[clamp(4rem,12vw,8.5rem)] font-black uppercase leading-[.78] tracking-[-.035em]">
-              La mejenga<br /><span className="text-lime">empieza aquí.</span>
-            </h1>
-            <p className="mt-8 max-w-xl text-lg leading-relaxed text-white/78 sm:text-xl">
-              Reúne al equipo. Elige tu horario. Nosotros tenemos la cancha lista para jugar.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/reservar" className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-lime px-6 text-lg font-bold text-ink shadow-[0_5px_0_#89a600] transition hover:-translate-y-0.5">
-                Reservar cancha <ArrowRight size={20} />
-              </Link>
-              <a href={`https://wa.me/${settings.whatsappPhone}?text=Hola%2C%20quiero%20consultar%20por%20la%20cancha`} className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl border border-white/25 bg-white/10 px-6 text-lg font-semibold backdrop-blur hover:bg-white/15">
-                <MessageCircle size={20} /> Escribir por WhatsApp
-              </a>
-            </div>
+    <main className="bg-white">
+      <MarketingHeader />
+      <section className="relative min-h-[760px] overflow-hidden bg-navy pt-28 text-white sm:min-h-[720px] sm:pt-32">
+        <Image src="https://images.pexels.com/photos/186239/pexels-photo-186239.jpeg?auto=compress&cs=tinysrgb&w=2000" alt="Grupo jugando una mejenga de fútbol por la noche" fill priority sizes="100vw" className="object-cover opacity-45" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,28,21,.96)_0%,rgba(7,28,21,.78)_48%,rgba(7,28,21,.35)_100%)]" />
+        <div className="field-lines absolute inset-0 opacity-35" />
+        <div className="relative mx-auto max-w-7xl px-4 pb-20 sm:px-6">
+          <div className="min-w-0 w-[calc(100vw-2rem)] max-w-3xl">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm font-semibold text-lime"><MapPin size={15} /> Ciudad Quesada, San Carlos</p>
+            <h1 className="mt-7 text-[clamp(3rem,12vw,7.5rem)] font-black leading-[.85] tracking-[-.06em]"><span className="block">Su próxima</span><span className="block text-lime">mejenga</span><span className="block">empieza aquí.</span></h1>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-white/72 sm:text-xl">Encuentre canchas de fútbol disponibles en Ciudad Quesada, compare horarios y reserve en pocos minutos.</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/canchas" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-xl bg-lime px-6 font-bold text-navy">Buscar cancha <Search size={18} /></Link><Link href="/registro" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/5 px-6 font-bold text-white">Publicar mi cancha <ArrowRight size={18} /></Link></div>
           </div>
-        </div>
-        <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#0c241a]/88 backdrop-blur-md">
-          <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-white/12 px-4 sm:grid-cols-4 sm:px-6">
-            {[
-              [Clock3, "Horario", "8:00 a. m. – 11:00 p. m."],
-              [WalletCards, "Por hora", formatCurrency(settings.hourlyRate)],
-              [MapPin, "Ubicación", "San Rafael, Alajuela"],
-              [Users, "Modalidad", "Fútbol 5 y 7"],
-            ].map(([Icon, label, value]) => {
-              const FeatureIcon = Icon as typeof Clock3;
-              return (
-                <div key={String(label)} className="flex min-h-24 items-center gap-3 px-3 py-4 sm:px-6">
-                  <FeatureIcon className="shrink-0 text-lime" size={22} />
-                  <div><p className="text-xs uppercase tracking-widest text-white/45">{String(label)}</p><p className="mt-1 text-sm font-semibold sm:text-base">{String(value)}</p></div>
-                </div>
-              );
-            })}
-          </div>
+
+          <form action="/canchas" className="mt-12 grid min-w-0 w-[calc(100vw-2rem)] max-w-full gap-3 overflow-hidden rounded-3xl bg-white p-4 text-navy shadow-[0_24px_70px_rgba(0,0,0,.25)] sm:p-5 md:grid-cols-[1.2fr_1fr_1fr_auto]" aria-label="Buscar canchas">
+            <SearchField icon={MapPin} label="Ubicación o sector"><select name="sector" defaultValue=""><option value="">Ciudad Quesada y alrededores</option>{popularSectors.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select></SearchField>
+            <SearchField icon={CalendarCheck2} label="Fecha"><input type="date" name="fecha" min={today} defaultValue={today} /></SearchField>
+            <SearchField icon={Clock3} label="Hora aproximada"><input type="time" name="hora" defaultValue="18:00" /></SearchField>
+            <button className="inline-flex min-h-14 items-center justify-center gap-2 self-end rounded-xl bg-green px-6 font-bold text-white hover:bg-green-dark"><Search size={18} /> Buscar canchas</button>
+          </form>
         </div>
       </section>
 
-      <section id="cancha" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="grid gap-12 lg:grid-cols-[.85fr_1.15fr] lg:items-end">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[.22em] text-forest/60">La cancha</p>
-            <h2 className="display mt-3 text-5xl font-black uppercase leading-none sm:text-7xl">Una cancha<br />hecha para jugar.</h2>
-            <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">Iluminación LED, camerinos limpios, parqueo y césped con mantenimiento constante. Todo lo necesario para que solo te preocupes por ganar.</p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {["Iluminación profesional", "Parqueo disponible", "Balones y petos", "Duchas y camerinos"].map((item) => (
-                <p key={item} className="flex items-center gap-2 font-semibold"><span className="grid size-6 place-items-center rounded-full bg-lime"><Check size={15} /></span>{item}</p>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="relative col-span-2 aspect-[16/8] overflow-hidden rounded-3xl">
-              <Image src={gallery[1].src} alt={gallery[1].alt} fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover" />
-            </div>
-            <div className="relative aspect-square overflow-hidden rounded-3xl">
-              <Image src={gallery[2].src} alt={gallery[2].alt} fill sizes="30vw" className="object-cover" />
-            </div>
-            <div className="flex aspect-square flex-col justify-between rounded-3xl bg-lime p-6 sm:p-8">
-              <Sparkles size={30} />
-              <p className="display text-3xl font-black uppercase leading-none sm:text-5xl">Tu próximo gol te espera.</p>
-            </div>
-          </div>
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24">
+        <SectionHeading eyebrow="Favoritas locales" title="Canchas destacadas" text="Opciones cerca de Ciudad Quesada para resolver la mejenga sin pasar horas escribiendo mensajes." action={<Link href="/canchas" className="font-bold text-green">Ver todas <ArrowRight className="inline" size={16} /></Link>} />
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">{featured.map((court, index) => <CourtCard key={court.id} court={court} priority={index === 0} />)}</div>
+      </section>
+
+      <section className="border-y border-line bg-paper py-20 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6"><SectionHeading eyebrow="Para jugar hoy" title="Horarios que todavía están libres" text="Consulte la disponibilidad real de cada cancha antes de enviar su solicitud." />
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{demoCourts.map((court) => <Link key={court.id} href={`/canchas/${court.slug}#reservar`} className="group rounded-2xl border border-line bg-white p-5 transition hover:border-green/30 hover:shadow-lg"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-green"><Clock3 size={19} /></span><h3 className="mt-5 text-lg font-bold text-navy">{court.name}</h3><p className="mt-1 text-sm text-slate-500">{court.sector}</p><p className="mt-5 font-bold text-green">{court.nextAvailable}</p></Link>)}</div>
         </div>
       </section>
 
-      <section className="bg-forest py-20 text-white sm:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="max-w-2xl">
-            <p className="text-sm font-bold uppercase tracking-[.22em] text-lime">Reserva en minutos</p>
-            <h2 className="display mt-3 text-5xl font-black uppercase sm:text-7xl">Tres pasos. Cero enredos.</h2>
-          </div>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {[
-              [CalendarCheck, "01", "Elige tu horario", "Consulta la disponibilidad actualizada y escoge la hora que mejor le sirve al equipo."],
-              [WalletCards, "02", "Paga por SINPE", "Te mostramos el total y el número SINPE. Adjunta una foto del comprobante."],
-              [ShieldCheck, "03", "Recibe confirmación", "El administrador revisa el pago y confirma tu reserva. Te avisamos por WhatsApp."],
-            ].map(([Icon, number, title, description]) => {
-              const StepIcon = Icon as typeof Clock3;
-              return (
-                <article key={String(number)} className="rounded-3xl border border-white/12 bg-white/[.06] p-6 sm:p-8">
-                  <div className="flex items-center justify-between"><span className="display text-5xl font-black text-white/15">{String(number)}</span><StepIcon className="text-lime" size={28} /></div>
-                  <h3 className="display mt-10 text-3xl font-bold uppercase">{String(title)}</h3>
-                  <p className="mt-3 leading-relaxed text-white/60">{String(description)}</p>
-                </article>
-              );
-            })}
-          </div>
+      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 sm:py-24 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
+        <div><p className="section-kicker">Explore cerca</p><h2 className="section-title mt-4">La mejenga, más cerca de casa.</h2><p className="mt-5 text-lg leading-8 text-slate-600">Empezamos en Ciudad Quesada y sus comunidades cercanas. Más sectores de San Carlos se agregarán conforme nuevas canchas se incorporen.</p></div>
+        <div className="grid grid-cols-2 gap-3">{popularSectors.map((sector, index) => <Link key={sector} href={`/canchas?sector=${encodeURIComponent(sector)}`} className={`relative overflow-hidden rounded-2xl border border-line p-5 ${index === 0 ? "col-span-2 bg-green text-white" : "bg-white text-navy"}`}><MapPin size={20} className={index === 0 ? "text-lime" : "text-green"} /><h3 className="mt-8 text-xl font-bold">{sector}</h3><p className={`mt-1 text-sm ${index === 0 ? "text-white/60" : "text-slate-500"}`}>Ver canchas disponibles</p></Link>)}</div>
+      </section>
+
+      <section id="como-funciona" className="bg-navy py-20 text-white sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6"><SectionHeading dark eyebrow="Así de sencillo" title="De la búsqueda a la cancha en tres pasos" text="Sin cuenta, sin formularios eternos y sin perderse entre conversaciones." />
+          <div className="mt-12 grid gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 md:grid-cols-3">{[[Search, "1. Encuentre", "Filtre por fecha, hora, sector, precio o modalidad."], [Clock3, "2. Elija", "Revise los servicios y seleccione un horario disponible."], [Check, "3. Solicite", "Deje sus datos y espere la confirmación de la cancha."]].map(([Icon, title, text]) => { const ItemIcon = Icon as typeof Search; return <article key={String(title)} className="bg-navy p-7 sm:p-9"><ItemIcon className="text-lime" size={27} /><h3 className="mt-12 text-2xl font-bold">{String(title)}</h3><p className="mt-3 leading-7 text-white/60">{String(text)}</p></article>; })}</div>
         </div>
       </section>
 
-      <section id="informacion" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl bg-white p-7 shadow-[0_16px_50px_rgba(16,32,25,.07)] sm:p-10">
-            <p className="text-sm font-bold uppercase tracking-[.18em] text-forest/55">Antes de jugar</p>
-            <h2 className="display mt-3 text-4xl font-black uppercase sm:text-5xl">Reglas claras, juego limpio.</h2>
-            <ul className="mt-8 space-y-5">
-              {["Presentarse 10 minutos antes de la reserva.", "Utilizar calzado adecuado para césped sintético.", "No se permite fumar dentro de la cancha.", "Cuidar las instalaciones y respetar el horario reservado."].map((rule, index) => (
-                <li key={rule} className="flex gap-4 border-b border-line pb-5 last:border-0"><span className="display text-xl font-black text-forest/30">0{index + 1}</span><span className="font-medium">{rule}</span></li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex flex-col justify-between rounded-3xl bg-[#ff6b35] p-7 text-white sm:p-10">
-            <div>
-              <MapPin size={32} />
-              <h2 className="display mt-6 text-5xl font-black uppercase">Estamos cerca.</h2>
-              <p className="mt-4 max-w-md text-lg text-white/80">{settings.location}</p>
-            </div>
-            <a href="https://maps.google.com/?q=San+Rafael+Alajuela+Costa+Rica" className="mt-16 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 font-bold text-ink sm:self-start">Abrir en Google Maps <ArrowRight size={18} /></a>
-          </div>
-        </div>
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24"><SectionHeading eyebrow="Todo claro" title="Menos coordinación. Más fútbol." />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">{[[Zap, "Disponibilidad clara", "Vea los espacios libres antes de llamar o escribir."], [ShieldCheck, "Sin choques de horario", "Cada reserva y bloqueo se valida en el servidor."], [MessageCircle, "Coordinación directa", "Después de reservar puede continuar la conversación por WhatsApp."]].map(([Icon, title, text]) => { const ItemIcon = Icon as typeof Zap; return <article key={String(title)} className="rounded-2xl border border-line p-6"><span className="grid size-11 place-items-center rounded-xl bg-lime text-navy"><ItemIcon size={21} /></span><h3 className="mt-6 text-xl font-bold text-navy">{String(title)}</h3><p className="mt-2 leading-7 text-slate-600">{String(text)}</p></article>; })}</div>
       </section>
 
-      <section className="px-4 pb-20 sm:px-6 sm:pb-28">
-        <div className="field-lines mx-auto max-w-7xl overflow-hidden rounded-3xl bg-forest px-6 py-14 text-center text-white sm:px-10 sm:py-20">
-          <p className="text-sm font-bold uppercase tracking-[.22em] text-lime">¿Listos para jugar?</p>
-          <h2 className="display mx-auto mt-3 max-w-4xl text-5xl font-black uppercase leading-[.9] sm:text-7xl">Separa la cancha antes de que lo haga otro equipo.</h2>
-          <Link href="/reservar" className="mt-8 inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-lime px-7 text-lg font-bold text-ink shadow-[0_5px_0_#89a600]">Ver horarios disponibles <ArrowRight size={20} /></Link>
-        </div>
-      </section>
-      <SiteFooter settings={settings} />
-      <a href={`https://wa.me/${settings.whatsappPhone}`} aria-label="Contactar por WhatsApp" className="fixed bottom-5 right-5 z-30 grid size-14 place-items-center rounded-full bg-[#25D366] text-white shadow-xl transition hover:scale-105 sm:hidden">
-        <MessageCircle size={26} />
-      </a>
+      <section id="propietarios" className="border-y border-line bg-[#eef4ec] py-20 sm:py-24"><div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2"><div><p className="section-kicker">Para propietarios</p><h2 className="section-title mt-4">Su cancha disponible sin contestar lo mismo veinte veces.</h2><p className="mt-6 text-lg leading-8 text-slate-600">Publique horarios, reciba solicitudes y mantenga su agenda ordenada desde un panel privado enfocado solamente en su cancha.</p><ul className="mt-7 grid gap-3 sm:grid-cols-2">{["Publicación de la cancha", "Calendario de reservas", "Horarios en tiempo real", "Panel privado", "Registro de clientes", "Enlace para compartir", "Soporte básico"].map((item) => <li key={item} className="flex gap-2 font-semibold text-navy"><Check className="shrink-0 text-green" size={18} /> {item}</li>)}</ul><Link href="/registro" className="mt-8 inline-flex min-h-13 items-center gap-2 rounded-xl bg-green px-6 font-bold text-white">Registrar mi cancha <ArrowRight size={18} /></Link></div><div className="rounded-3xl bg-white p-6 shadow-[0_24px_70px_rgba(15,35,28,.1)] sm:p-8"><div className="flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-lime text-navy"><Store /></span><div><p className="text-sm text-slate-500">Plan para propietarios</p><h3 className="text-2xl font-bold text-navy">Simple y local</h3></div></div><div className="mt-8 grid grid-cols-2 rounded-xl bg-paper p-1"><span className="rounded-lg bg-white p-3 text-center font-bold shadow-sm">Mensual</span><span className="p-3 text-center font-bold text-slate-500">Anual · ahorre 2 meses</span></div><p className="mt-8 text-4xl font-bold text-navy">₡19.900 <span className="text-base font-normal text-slate-400">/ mes</span></p><p className="mt-3 text-sm text-slate-500">La interfaz queda lista para conectar facturación posteriormente. No se cobran tarjetas en esta versión.</p></div></div></section>
+
+      <section className="bg-green px-4 py-16 text-white sm:px-6 sm:py-20"><div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-8 text-center lg:flex-row lg:text-left"><div><p className="font-bold text-lime">Ciudad Quesada juega aquí</p><h2 className="mt-2 max-w-3xl text-4xl font-bold tracking-[-.04em] sm:text-5xl">Encuentre la cancha. Arme el grupo. Juegue.</h2></div><div className="flex flex-col gap-3 sm:flex-row"><Link href="/canchas" className="inline-flex min-h-13 items-center justify-center rounded-xl bg-white px-6 font-bold text-green">Buscar cancha</Link><Link href="/registro" className="inline-flex min-h-13 items-center justify-center rounded-xl border border-white/30 px-6 font-bold text-white">Publicar mi cancha</Link></div></div></section>
+      <MarketingFooter />
     </main>
   );
+}
+
+function SearchField({ icon: Icon, label, children }: { icon: typeof MapPin; label: string; children: React.ReactNode }) {
+  return <label className="grid min-w-0 gap-1"><span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400"><Icon size={14} /> {label}</span><span className="min-w-0 [&_input]:min-h-11 [&_input]:w-full [&_input]:min-w-0 [&_input]:max-w-full [&_input]:bg-transparent [&_input]:font-semibold [&_input]:outline-none [&_select]:min-h-11 [&_select]:w-full [&_select]:min-w-0 [&_select]:max-w-full [&_select]:bg-transparent [&_select]:font-semibold [&_select]:outline-none">{children}</span></label>;
+}
+
+function SectionHeading({ eyebrow, title, text, action, dark = false }: { eyebrow: string; title: string; text?: string; action?: React.ReactNode; dark?: boolean }) {
+  return <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div className="max-w-3xl"><p className={`section-kicker ${dark ? "!text-lime" : ""}`}>{eyebrow}</p><h2 className={`section-title mt-4 ${dark ? "!text-white" : ""}`}>{title}</h2>{text && <p className={`mt-4 max-w-2xl text-lg leading-8 ${dark ? "text-white/60" : "text-slate-600"}`}>{text}</p>}</div>{action}</div>;
 }

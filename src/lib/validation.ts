@@ -19,7 +19,7 @@ export const reservationSchema = z
   .strict();
 
 export const paymentUploadSchema = z.object({
-  reservationCode: z.string().regex(/^LD-[A-Z0-9]{6,12}$/),
+  reservationCode: z.string().regex(/^(CF|LD)-[A-Z0-9]{6,12}$/),
   publicToken: z.string().uuid(),
 });
 
@@ -42,6 +42,12 @@ export const reservationUpdateSchema = z
   .strict();
 
 export const settingsSchema = z.object({
+  businessName: z.string().trim().min(2).max(100),
+  description: z.string().trim().min(10).max(1200),
+  location: z.string().trim().min(3).max(240),
+  email: z.email().trim(),
+  currency: z.string().length(3),
+  timezone: z.string().trim().min(3).max(80),
   fieldName: z.string().trim().min(2).max(100),
   whatsappPhone: phone,
   sinpePhone: phone,
@@ -52,6 +58,27 @@ export const settingsSchema = z.object({
   holdMinutes: z.number().int().min(5).max(180),
   cancellationPolicy: z.string().trim().min(10).max(2000),
   nonWorkingDays: z.array(z.iso.date()).max(100).default([]),
+});
+
+export const onboardingSchema = z.object({
+  ownerName: z.string().trim().min(3).max(100),
+  email: z.email().trim(),
+  password: z.string().min(8).max(72),
+  businessName: z.string().trim().min(2).max(100),
+  slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
+  phone,
+  location: z.string().trim().min(3).max(240),
+  description: z.string().trim().min(10).max(1200),
+  currency: z.enum(["CRC", "USD", "MXN", "COP", "GTQ"]),
+  timezone: z.string().trim().min(3).max(80),
+  courtName: z.string().trim().min(2).max(100),
+  sport: z.string().trim().min(2).max(60),
+  openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  reservationMinutes: z.number().int().min(30).max(240),
+  hourlyRate: z.number().positive().max(10_000_000),
+  billingInterval: z.enum(["monthly", "annual"]),
+  plan: z.enum(["starter", "pro", "scale"]),
 });
 
 export const MAX_PAYMENT_FILE_SIZE = 5 * 1024 * 1024;

@@ -3,6 +3,7 @@ import { addMinutesToTime, currentTimeInCostaRica, sanitizeText, todayInCostaRic
 import { reservationSchema } from "@/lib/validation";
 import { hasSupabaseAdminEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
+import { createDemoReservation } from "@/lib/demo-data";
 
 export async function POST(request: Request) {
   let input: unknown;
@@ -32,13 +33,12 @@ export async function POST(request: Request) {
   };
 
   if (!hasSupabaseEnv()) {
-    const reservationCode = `LD-${crypto.randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`;
-    return NextResponse.json({
-      reservationCode,
-      publicToken: crypto.randomUUID(),
-      expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-      demo: true,
-    }, { status: 201 });
+    try {
+      const reservation = createDemoReservation(payload);
+      return NextResponse.json({ id: reservation.id, reservationCode: reservation.reservationCode, status: reservation.status, demo: true }, { status: 201 });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Ese horario ya no está disponible" }, { status: 409 });
+    }
   }
   if (!hasSupabaseAdminEnv()) {
     return NextResponse.json({ error: "Falta configurar la clave privada del servidor" }, { status: 503 });
@@ -64,8 +64,7 @@ export async function POST(request: Request) {
     const created = Array.isArray(data) ? data[0] : data;
     return NextResponse.json({
       reservationCode: created.reservation_code,
-      publicToken: created.public_token,
-      expiresAt: created.expires_at,
+      status: "pending",
     }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "No pudimos crear la reserva. Intenta de nuevo." }, { status: 503 });

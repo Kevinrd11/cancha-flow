@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DEFAULT_SETTINGS } from "@/lib/constants";
 import { getDemoAvailability } from "@/lib/demo-data";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -9,7 +8,7 @@ import { currentTimeInCostaRica, todayInCostaRica } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const querySchema = z.object({ date: z.iso.date() });
+const querySchema = z.object({ date: z.iso.date(), fieldId: z.string().uuid() });
 
 function removePastSlots(date: string, slots: TimeSlot[]) {
   if (date !== todayInCostaRica()) return slots;
@@ -18,19 +17,20 @@ function removePastSlots(date: string, slots: TimeSlot[]) {
 }
 
 export async function GET(request: Request) {
-  const parsed = querySchema.safeParse({ date: new URL(request.url).searchParams.get("date") });
+  const url = new URL(request.url);
+  const parsed = querySchema.safeParse({ date: url.searchParams.get("date"), fieldId: url.searchParams.get("fieldId") });
   if (!parsed.success || parsed.data.date < todayInCostaRica()) {
     return NextResponse.json({ error: "La fecha no es válida" }, { status: 400 });
   }
 
   if (!hasSupabaseEnv()) {
-    return NextResponse.json({ slots: removePastSlots(parsed.data.date, getDemoAvailability(parsed.data.date)), demo: true });
+    return NextResponse.json({ slots: removePastSlots(parsed.data.date, getDemoAvailability(parsed.data.date, parsed.data.fieldId)), demo: true });
   }
 
   try {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.rpc("get_public_availability", {
-      p_field_id: DEFAULT_SETTINGS.fieldId,
+      p_field_id: parsed.data.fieldId,
       p_date: parsed.data.date,
     });
     if (error) throw error;

@@ -20,6 +20,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const isLogin = request.nextUrl.pathname === "/admin/login";
+  const isPlatform = request.nextUrl.pathname.startsWith("/plataforma");
   if (!user && !isLogin) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/admin/login";
@@ -32,13 +33,23 @@ export async function proxy(request: NextRequest) {
       .select("role, active")
       .eq("id", user.id)
       .single();
-    if ((!profile || profile.role !== "admin" || !profile.active) && !isLogin) {
+    const isPlatformAdmin = profile?.role === "platform_admin";
+    const { data: membership } = isPlatformAdmin ? { data: null } : await supabase
+      .from("business_members")
+      .select("business_id")
+      .eq("user_id", user.id)
+      .eq("active", true)
+      .in("role", ["owner", "staff"])
+      .limit(1)
+      .maybeSingle();
+    const canManageBusiness = isPlatformAdmin || (["admin", "owner", "staff"].includes(profile?.role ?? "") && Boolean(membership));
+    if ((!profile || !canManageBusiness || !profile.active || (isPlatform && !isPlatformAdmin)) && !isLogin) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/admin/login";
       loginUrl.searchParams.set("error", "unauthorized");
       return NextResponse.redirect(loginUrl);
     }
-    if (isLogin && profile?.active) {
+    if (isLogin && profile?.active && canManageBusiness) {
       const adminUrl = request.nextUrl.clone();
       adminUrl.pathname = "/admin";
       return NextResponse.redirect(adminUrl);
@@ -49,5 +60,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/plataforma/:path*"],
 };

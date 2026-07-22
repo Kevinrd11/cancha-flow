@@ -3,15 +3,19 @@
 :root {
   --font-barlow: "Barlow";
   --font-barlow-condensed: "Barlow Condensed";
-  --ink: #102019;
-  --muted: #607067;
-  --paper: #f5f6f0;
+  --ink: #12231d;
+  --muted: #64736c;
+  --paper: #f6f8f6;
   --card: #ffffff;
   --line: #dce2d9;
-  --lime: #c7f000;
-  --lime-dark: #a7cc00;
-  --forest: #173d2d;
+  --lime: #baf34a;
+  --lime-dark: #94c72f;
+  --forest: #126b45;
   --orange: #ff6b35;
+  --navy: #0d231d;
+  --green: #126b45;
+  --green-dark: #0b5536;
+  --mint: #baf34a;
 }
 
 @theme inline {
@@ -24,6 +28,10 @@
   --color-lime-dark: var(--lime-dark);
   --color-forest: var(--forest);
   --color-orange: var(--orange);
+  --color-navy: var(--navy);
+  --color-green: var(--green);
+  --color-green-dark: var(--green-dark);
+  --color-mint: var(--mint);
   --font-sans: var(--font-barlow);
   --font-display: var(--font-barlow-condensed);
 }
@@ -39,6 +47,20 @@ body {
   color: var(--ink);
   font-family: var(--font-barlow), system-ui, sans-serif;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: hidden;
 }
 
@@ -74,6 +96,63 @@ a {
     linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px);
   background-size: 42px 42px;
+}
+
+.platform-grid {
+  background-image:
+    linear-gradient(rgba(18, 107, 69, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 107, 69, .045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black 10%, transparent 85%);
+}
+
+.section-kicker {
+  color: var(--green);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.section-title {
+  color: var(--navy);
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 700;
+  letter-spacing: -.045em;
+  line-height: 1.02;
+}
+
+.court-art-football,
+.court-art-padel,
+.court-art-neutral,
+.court-hero-art {
+  background-color: #126b45;
+  background-image:
+    linear-gradient(rgba(255,255,255,.14) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(255,255,255,.14) 2px, transparent 2px),
+    radial-gradient(circle at center, transparent 18%, rgba(255,255,255,.15) 18.5%, rgba(255,255,255,.15) 19.5%, transparent 20%);
+  background-size: 54px 54px, 54px 54px, 100% 100%;
+}
+
+.court-art-padel {
+  background-color: #235dd8;
+  background-size: 34px 34px, 34px 34px, 100% 100%;
+}
+
+.court-art-neutral {
+  background-color: #50645d;
+}
+
+.court-hero-art {
+  background-color: color-mix(in srgb, var(--tenant-color, #126b45) 82%, #071c15);
+  background-size: 72px 72px, 72px 72px, 100% 100%;
+  box-shadow: inset 0 0 90px rgba(0,0,0,.28);
+}
+
+.tenant-lines {
+  background-image:
+    linear-gradient(120deg, transparent 30%, rgba(186,243,74,.06) 30%, rgba(186,243,74,.06) 31%, transparent 31%),
+    radial-gradient(circle at 80% 40%, rgba(18,107,69,.45), transparent 35%);
 }
 
 .scrollbar-none::-webkit-scrollbar {

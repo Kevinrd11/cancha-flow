@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const supabase = createAdminSupabaseClient();
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
-      .select("id, reservation_code, public_token, status, expires_at, total")
+      .select("id, business_id, reservation_code, public_token, status, expires_at, total")
       .eq("reservation_code", parsed.data.reservationCode)
       .eq("public_token", parsed.data.publicToken)
       .single();
@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     if (uploadError) throw uploadError;
 
     const { error: paymentError } = await supabase.from("payments").insert({
+      business_id: reservation.business_id,
       reservation_id: reservation.id,
       amount: reservation.total,
       method: "sinpe",

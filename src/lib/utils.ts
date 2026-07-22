@@ -7,10 +7,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value: number) {
+export function formatCurrency(value: number, currency = "CRC") {
   return new Intl.NumberFormat("es-CR", {
     style: "currency",
-    currency: "CRC",
+    currency,
     maximumFractionDigits: 0,
   }).format(value);
 }

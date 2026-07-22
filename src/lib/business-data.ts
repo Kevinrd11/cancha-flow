@@ -1,28 +1,40 @@
 import "server-only";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
+import { getBusinessBySlug } from "@/lib/platform-data";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { BusinessSettings } from "@/lib/types";
 
-export async function getBusinessSettings(): Promise<BusinessSettings> {
+export async function getBusinessSettings(slug = DEFAULT_SETTINGS.businessSlug): Promise<BusinessSettings> {
   if (!hasSupabaseEnv()) return DEFAULT_SETTINGS;
   try {
+    const result = await getBusinessBySlug(slug);
+    const court = result?.courts[0];
+    if (!result || !court) return DEFAULT_SETTINGS;
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("business_settings")
-      .select("field_id, whatsapp_phone, sinpe_phone, opening_time, closing_time, minimum_reservation_minutes, hold_minutes, cancellation_policy, non_working_days, fields(name, location, hourly_rate)")
-      .eq("field_id", DEFAULT_SETTINGS.fieldId)
+      .select("field_id, whatsapp_phone, sinpe_phone, opening_time, closing_time, minimum_reservation_minutes, hold_minutes, cancellation_policy, non_working_days")
+      .eq("business_id", result.business.id)
+      .eq("field_id", court.id)
       .single();
-    if (error) throw error;
-    const rawField = data.fields as unknown;
-    const field = (Array.isArray(rawField) ? rawField[0] : rawField) as { name?: string; location?: string; hourly_rate?: number } | null;
+    if (error || !data) throw error;
     return {
-      fieldId: data.field_id,
-      fieldName: field?.name ?? DEFAULT_SETTINGS.fieldName,
-      location: field?.location ?? DEFAULT_SETTINGS.location,
-      whatsappPhone: data.whatsapp_phone,
+      businessId: result.business.id,
+      businessName: result.business.name,
+      businessSlug: result.business.slug,
+      fieldId: court.id,
+      fieldName: court.name,
+      sport: court.sport,
+      description: result.business.description,
+      location: result.business.location,
+      email: result.business.email,
+      whatsappPhone: result.business.whatsappPhone || data.whatsapp_phone,
       sinpePhone: data.sinpe_phone,
-      hourlyRate: Number(field?.hourly_rate ?? DEFAULT_SETTINGS.hourlyRate),
+      currency: result.business.currency,
+      timezone: result.business.timezone,
+      primaryColor: result.business.primaryColor,
+      hourlyRate: court.hourlyRate,
       openingTime: data.opening_time.slice(0, 5),
       closingTime: data.closing_time.slice(0, 5),
       minimumMinutes: data.minimum_reservation_minutes,

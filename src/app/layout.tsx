@@ -8,11 +8,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "La Doce | Reserva tu cancha",
-    template: "%s | La Doce",
+    default: "CanchaFlow | Canchas de fútbol en Ciudad Quesada",
+    template: "%s | CanchaFlow",
   },
   description:
-    "Reserva en línea la cancha La Doce. Consulta horarios, paga por SINPE y asegura tu mejenga.",
+    "Encuentre canchas de fútbol disponibles en Ciudad Quesada, compare horarios y reserve en pocos minutos.",
 };
 
 export default function RootLayout({

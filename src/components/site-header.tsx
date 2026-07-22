@@ -7,14 +7,14 @@ export function SiteHeader({ compact = false, settings = DEFAULT_SETTINGS }: { c
   return (
     <header className={compact ? "border-b border-white/10 bg-forest text-white" : "absolute inset-x-0 top-0 z-20 text-white"}>
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2" aria-label="La Doce, inicio">
-          <span className="grid size-9 place-items-center rounded-full bg-lime font-display text-xl font-black text-ink">12</span>
-          <span className="display text-2xl font-extrabold uppercase tracking-wide">La Doce</span>
+        <Link href="/" className="flex items-center gap-2" aria-label="CanchaFlow, inicio">
+          <span className="grid size-9 place-items-center rounded-xl bg-lime text-xl font-black text-ink">C</span>
+          <span className="text-2xl font-bold tracking-tight">CanchaFlow</span>
         </Link>
         <nav className="hidden items-center gap-8 text-sm font-semibold md:flex" aria-label="Navegación principal">
-          <Link href="/#cancha" className="hover:text-lime">La cancha</Link>
-          <Link href="/#informacion" className="hover:text-lime">Información</Link>
-          <Link href="/reservar" className="hover:text-lime">Disponibilidad</Link>
+          <Link href="/#funciones" className="hover:text-lime">Funciones</Link>
+          <Link href="/#planes" className="hover:text-lime">Planes</Link>
+          <Link href="/centro/arena-central" className="hover:text-lime">Demostración</Link>
           <a href={`https://wa.me/${settings.whatsappPhone}`} className="inline-flex items-center gap-2 hover:text-lime">
             <MessageCircle size={17} /> WhatsApp
           </a>

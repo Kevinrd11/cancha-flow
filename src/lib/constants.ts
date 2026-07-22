@@ -1,11 +1,20 @@
 import type { BusinessSettings } from "@/lib/types";
 
 export const DEFAULT_SETTINGS: BusinessSettings = {
+  businessId: "00000000-0000-4000-8000-000000000010",
+  businessName: "Arena Ciudad Quesada",
+  businessSlug: "arena-ciudad-quesada",
   fieldId: "00000000-0000-4000-8000-000000000001",
-  fieldName: "La Doce",
-  location: "San Rafael, Alajuela · 200 m norte de la iglesia",
+  fieldName: "Arena Ciudad Quesada",
+  sport: "Fútbol 5",
+  description: "Cancha sintética techada para fútbol 5 en el centro de Ciudad Quesada.",
+  location: "Barrio El Carmen, Ciudad Quesada, San Carlos",
+  email: "reservas@canchaflow.cr",
   whatsappPhone: "50688881212",
-  sinpePhone: "8888-1212",
+  sinpePhone: "",
+  currency: "CRC",
+  timezone: "America/Costa_Rica",
+  primaryColor: "#126B45",
   hourlyRate: 18000,
   openingTime: "08:00",
   closingTime: "23:00",
@@ -35,6 +44,11 @@ export const STATUS_LABELS: Record<string, string> = {
   unpaid: "Sin pagar",
   approved: "Pagado",
   rejected: "Rechazado",
+  trial: "Prueba",
+  active: "Activa",
+  past_due: "Pago pendiente",
+  canceled: "Cancelada",
+  suspended: "Suspendida",
 };
 
 export const STATUS_STYLES: Record<string, string> = {
@@ -46,4 +60,8 @@ export const STATUS_STYLES: Record<string, string> = {
   completed: "bg-slate-100 text-slate-700",
   no_show: "bg-violet-100 text-violet-800",
   expired: "bg-stone-100 text-stone-600",
+  active: "bg-emerald-100 text-emerald-800",
+  trial: "bg-sky-100 text-sky-800",
+  past_due: "bg-amber-100 text-amber-800",
+  suspended: "bg-rose-100 text-rose-800",
 };

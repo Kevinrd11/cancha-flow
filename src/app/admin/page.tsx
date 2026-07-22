@@ -1,81 +1,46 @@
 import Link from "next/link";
-import { addDays, endOfWeek, format, isWithinInterval, startOfWeek } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowRight, CalendarCheck, CircleDollarSign, Clock3, TimerReset, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarCheck, CircleDollarSign, Clock3, TriangleAlert } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAdminReservations } from "@/lib/admin-data";
-import { DEFAULT_SETTINGS } from "@/lib/constants";
+import { getBusinessSettings } from "@/lib/business-data";
 import { formatCurrency, formatTime, todayInCostaRica } from "@/lib/utils";
 
 export default async function AdminDashboard() {
-  const reservations = await getAdminReservations();
+  const [reservations, settings] = await Promise.all([getAdminReservations(), getBusinessSettings()]);
   const today = todayInCostaRica();
-  const todayReservations = reservations.filter((item) => item.date === today && !["cancelled", "expired"].includes(item.status));
-  const pending = reservations.filter((item) => ["pending", "awaiting_payment", "awaiting_approval"].includes(item.status));
-  const nextReservation = [...reservations]
-    .filter((item) => `${item.date}T${item.startTime}` > `${today}T00:00` && item.status === "confirmed")
+  const active = reservations.filter((item) => !["cancelled", "expired"].includes(item.status));
+  const todayReservations = active.filter((item) => item.date === today);
+  const pending = reservations.filter((item) => item.status === "pending");
+  const nextReservation = active
+    .filter((item) => `${item.date}T${item.startTime}` >= `${today}T00:00`)
     .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))[0];
-  const confirmedIncome = reservations.filter((item) => item.paymentStatus === "approved").reduce((sum, item) => sum + item.total, 0);
-  const occupiedToday = todayReservations.reduce((sum, item) => {
-    const [sh, sm] = item.startTime.split(":").map(Number);
-    const [eh, em] = item.endTime.split(":").map(Number);
-    return sum + (eh * 60 + em - sh * 60 - sm) / 60;
-  }, 0);
-  const availableHours = Math.max(0, 15 - occupiedToday);
-  const weekStart = startOfWeek(new Date(`${today}T12:00:00`), { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-  const weekReservations = reservations.filter((item) => isWithinInterval(new Date(`${item.date}T12:00:00`), { start: weekStart, end: weekEnd }));
+  const occupiedMinutes = todayReservations.reduce((sum, item) => sum + toMinutes(item.endTime) - toMinutes(item.startTime), 0);
+  const capacityMinutes = Math.max(0, toMinutes(settings.closingTime) - toMinutes(settings.openingTime));
+  const freeHours = Math.max(0, (capacityMinutes - occupiedMinutes) / 60);
+  const dayIncome = todayReservations.filter((item) => ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total, 0);
+  const monthIncome = reservations.filter((item) => item.date.startsWith(today.slice(0, 7)) && ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total, 0);
 
-  return (
-    <main>
-      <AdminPageHeader eyebrow={format(new Date(`${today}T12:00:00`), "EEEE d 'de' MMMM", { locale: es })} title="Todo bajo control." description="Un vistazo rápido a la operación de la cancha." actions={<Link href="/admin/calendario" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-lime px-4 font-bold text-ink shadow-[0_3px_0_#8aa900]">Nueva reserva <ArrowRight size={17} /></Link>} />
-      <div className="p-4 sm:p-7 lg:p-10">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric icon={CalendarCheck} label="Reservas hoy" value={String(todayReservations.length)} helper={`${occupiedToday} h ocupadas`} tone="forest" />
-          <Metric icon={TriangleAlert} label="Pendientes" value={String(pending.length)} helper="Requieren atención" tone="orange" />
-          <Metric icon={Clock3} label="Próxima reserva" value={nextReservation ? formatTime(nextReservation.startTime) : "—"} helper={nextReservation?.customerName ?? "Sin reservas"} tone="lime" />
-          <Metric icon={TimerReset} label="Horas disponibles" value={`${availableHours} h`} helper="Para hoy" />
-          <Metric icon={CircleDollarSign} label="Ingresos confirmados" value={formatCurrency(confirmedIncome)} helper="Total registrado" />
-        </section>
+  return <main>
+    <AdminPageHeader eyebrow={format(new Date(`${today}T12:00:00`), "EEEE d 'de' MMMM", { locale: es })} title="Resumen" description={`Lo importante de ${settings.fieldName}, sin ruido.`} actions={<Link href="/admin/calendario" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green px-4 font-bold text-white">Nueva reserva <ArrowRight size={17} /></Link>} />
+    <div className="p-4 sm:p-7 lg:p-9">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric icon={CalendarCheck} label="Reservas de hoy" value={String(todayReservations.length)} helper={`${occupiedMinutes / 60} horas ocupadas`} />
+        <Metric icon={Clock3} label="Próxima reserva" value={nextReservation ? formatTime(nextReservation.startTime) : "Sin reservas"} helper={nextReservation?.customerName ?? "Agenda libre"} />
+        <Metric icon={TriangleAlert} label="Pendientes" value={String(pending.length)} helper="Por confirmar" alert={pending.length > 0} />
+        <Metric icon={Clock3} label="Horas libres hoy" value={`${freeHours % 1 ? freeHours.toFixed(1) : freeHours} h`} helper={`${settings.openingTime} – ${settings.closingTime}`} />
+        <Metric icon={CircleDollarSign} label="Ingreso estimado" value={formatCurrency(dayIncome, settings.currency)} helper={`${formatCurrency(monthIncome, settings.currency)} este mes`} />
+      </section>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
-          <section className="overflow-hidden rounded-3xl bg-white shadow-[0_10px_35px_rgba(16,32,25,.05)]">
-            <div className="flex items-center justify-between border-b border-line p-5 sm:p-6"><div><h2 className="display text-2xl font-bold uppercase">Agenda de hoy</h2><p className="text-sm text-muted">{todayReservations.length} movimientos programados</p></div><Link href="/admin/calendario" className="text-sm font-bold text-forest">Ver calendario</Link></div>
-            <div className="divide-y divide-line">
-              {todayReservations.length ? todayReservations.map((reservation) => (
-                <article key={reservation.id} className="grid gap-3 p-5 sm:grid-cols-[90px_1fr_auto] sm:items-center sm:px-6">
-                  <div><strong className="display text-2xl">{formatTime(reservation.startTime)}</strong><p className="text-xs text-muted">{formatTime(reservation.endTime)}</p></div>
-                  <div><p className="font-bold">{reservation.customerName}</p><p className="text-sm text-muted">{reservation.reservationCode} · {reservation.source}</p></div>
-                  <StatusBadge status={reservation.status} />
-                </article>
-              )) : <div className="p-10 text-center text-muted">No hay reservas para hoy.</div>}
-            </div>
-          </section>
-
-          <section className="rounded-3xl bg-[#102019] p-6 text-white shadow-[0_10px_35px_rgba(16,32,25,.12)]">
-            <div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime">Resumen semanal</p><h2 className="display mt-2 text-3xl font-bold uppercase">Ocupación</h2></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs">{format(weekStart, "d MMM", { locale: es })} – {format(weekEnd, "d MMM", { locale: es })}</span></div>
-            <div className="mt-8 flex items-end gap-2" aria-label="Reservas por día de la semana">
-              {Array.from({ length: 7 }, (_, index) => {
-                const day = addDays(weekStart, index);
-                const date = format(day, "yyyy-MM-dd");
-                const count = weekReservations.filter((item) => item.date === date).length;
-                return <div key={date} className="flex flex-1 flex-col items-center gap-2"><span className="text-xs font-bold text-white/55">{count}</span><div className="w-full rounded-t-lg bg-lime/85" style={{ height: `${Math.max(14, count * 30)}px` }} /><span className="text-xs text-white/45">{format(day, "EEEEE", { locale: es })}</span></div>;
-              })}
-            </div>
-            <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/12 pt-6"><div><p className="text-xs text-white/45">Reservas</p><p className="display mt-1 text-3xl font-black">{weekReservations.length}</p></div><div><p className="text-xs text-white/45">Ingreso semanal</p><p className="display mt-1 text-2xl font-black text-lime">{formatCurrency(weekReservations.filter((item) => item.paymentStatus === "approved").reduce((sum, item) => sum + item.total, 0))}</p></div></div>
-          </section>
-        </div>
-
-        <section className="mt-6 rounded-3xl border border-line bg-white p-5 sm:p-6">
-          <h2 className="display text-2xl font-bold uppercase">Datos de operación</h2>
-          <div className="mt-5 grid gap-4 text-sm sm:grid-cols-3"><div><p className="text-muted">Horario</p><strong>{formatTime(DEFAULT_SETTINGS.openingTime)} – {formatTime(DEFAULT_SETTINGS.closingTime)}</strong></div><div><p className="text-muted">Precio por hora</p><strong>{formatCurrency(DEFAULT_SETTINGS.hourlyRate)}</strong></div><div><p className="text-muted">Apartado temporal</p><strong>{DEFAULT_SETTINGS.holdMinutes} minutos</strong></div></div>
-        </section>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
+        <section className="overflow-hidden rounded-2xl border border-line bg-white"><div className="flex items-center justify-between border-b border-line p-5"><div><h2 className="text-xl font-bold text-navy">Agenda de hoy</h2><p className="mt-1 text-sm text-slate-500">Reservas confirmadas y pendientes</p></div><Link href="/admin/calendario" className="text-sm font-bold text-green">Ver calendario</Link></div><div className="divide-y divide-line">{todayReservations.length ? todayReservations.sort((a, b) => a.startTime.localeCompare(b.startTime)).map((reservation) => <article key={reservation.id} className="grid gap-3 p-5 sm:grid-cols-[80px_1fr_auto] sm:items-center"><div><strong className="text-lg text-navy">{formatTime(reservation.startTime)}</strong><p className="text-xs text-slate-400">{formatTime(reservation.endTime)}</p></div><div><p className="font-bold text-navy">{reservation.customerName}</p><p className="text-sm text-slate-500">{reservation.customerPhone} · {reservation.reservationCode}</p></div><StatusBadge status={reservation.status} /></article>) : <p className="p-10 text-center text-slate-500">Todavía no hay reservas para hoy.</p>}</div></section>
+        <section className="h-fit rounded-2xl bg-navy p-6 text-white"><p className="text-xs font-bold uppercase tracking-[.16em] text-mint">Requieren atención</p><h2 className="mt-2 text-2xl font-bold">Solicitudes pendientes</h2><div className="mt-6 space-y-3">{pending.slice(0, 4).map((reservation) => <div key={reservation.id} className="rounded-xl bg-white/7 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{reservation.customerName}</p><p className="text-sm text-white/50">{reservation.date} · {formatTime(reservation.startTime)}</p></div><StatusBadge status={reservation.status} /></div></div>)}{!pending.length && <p className="rounded-xl bg-white/7 p-4 text-sm text-white/60">Todo al día. No hay solicitudes esperando confirmación.</p>}</div><Link href="/admin/reservas" className="mt-5 inline-flex items-center gap-2 font-bold text-mint">Revisar reservas <ArrowRight size={16} /></Link></section>
       </div>
-    </main>
-  );
+    </div>
+  </main>;
 }
 
-function Metric({ icon: Icon, label, value, helper, tone }: { icon: typeof CalendarCheck; label: string; value: string; helper: string; tone?: "forest" | "orange" | "lime" }) {
-  return <article className="rounded-2xl border border-line bg-white p-5"><div className="flex items-center justify-between"><p className="text-sm font-semibold text-muted">{label}</p><span className={`grid size-9 place-items-center rounded-xl ${tone === "orange" ? "bg-orange/12 text-orange" : tone === "lime" ? "bg-lime text-ink" : "bg-forest/8 text-forest"}`}><Icon size={18} /></span></div><p className="display mt-5 truncate text-3xl font-black">{value}</p><p className="mt-1 truncate text-xs text-muted">{helper}</p></article>;
-}
+function toMinutes(value: string) { const [hours, minutes] = value.split(":").map(Number); return hours * 60 + minutes; }
+function Metric({ icon: Icon, label, value, helper, alert }: { icon: typeof CalendarCheck; label: string; value: string; helper: string; alert?: boolean }) { return <article className="rounded-2xl border border-line bg-white p-5"><span className={`grid size-9 place-items-center rounded-xl ${alert ? "bg-amber-100 text-amber-700" : "bg-emerald-50 text-green"}`}><Icon size={18} /></span><p className="mt-5 text-sm text-slate-500">{label}</p><p className="mt-1 truncate text-2xl font-bold tracking-[-.025em] text-navy">{value}</p><p className="mt-1 truncate text-xs text-slate-400">{helper}</p></article>; }

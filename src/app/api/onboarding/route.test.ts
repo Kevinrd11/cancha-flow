@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   existingSlug: null as null | { id: string },
   profile: { role: "customer", active: true } as null | { role: string; active: boolean },
-  membership: null as null | { id: string },
+  membership: null as null | { id?: string; user_id?: string },
+  ownerLookup: null as null | { id: string; email: string; email_confirmed_at?: string },
   signUpResult: { data: { user: { id: "new-user", identities: [{ id: "identity" }] }, session: null }, error: null } as {
     data: { user: null | { id: string; identities?: { id: string }[] }; session: null | { access_token: string } };
     error: null | { message: string };
@@ -17,12 +18,13 @@ const state = vi.hoisted(() => ({
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   deleteUser: vi.fn(),
+  getUserById: vi.fn(),
+  resend: vi.fn(),
   recordSecurityEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/request-security", () => ({
   hasTrustedOrigin: () => true,
-  enforceAuthRateLimit: async () => ({ allowed: true, retryAfter: 0, fingerprint: "a".repeat(64) }),
 }));
 vi.mock("@/lib/auth/audit", () => ({ recordSecurityEvent: mocks.recordSecurityEvent }));
 vi.mock("@/lib/supabase/env", () => ({
@@ -32,10 +34,10 @@ vi.mock("@/lib/supabase/env", () => ({
   isDemoMode: () => false,
 }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: async () => ({ auth: { signUp: async () => state.signUpResult, signOut: vi.fn() } }),
+  createServerSupabaseClient: async () => ({ auth: { signUp: async () => state.signUpResult, signOut: vi.fn(), resend: mocks.resend } }),
   createIsolatedSupabaseClient: () => ({ auth: { signInWithPassword: async () => state.signInResult } }),
   createAdminSupabaseClient: () => ({
-    auth: { admin: { deleteUser: mocks.deleteUser } },
+    auth: { admin: { deleteUser: mocks.deleteUser, getUserById: mocks.getUserById } },
     rpc: mocks.rpc,
     from(table: string) {
       const chain = {
@@ -88,10 +90,13 @@ describe("POST /api/onboarding", () => {
     state.existingSlug = null;
     state.profile = { role: "customer", active: true };
     state.membership = null;
+    state.ownerLookup = null;
     state.signUpResult = { data: { user: { id: "new-user", identities: [{ id: "identity" }] }, session: null }, error: null };
     state.signInResult = { data: { user: null }, error: { message: "Invalid credentials" } };
     mocks.rpc.mockReset().mockResolvedValue({ data: "business-id", error: null });
     mocks.deleteUser.mockReset();
+    mocks.getUserById.mockReset().mockImplementation(async () => ({ data: { user: state.ownerLookup }, error: null }));
+    mocks.resend.mockReset().mockResolvedValue({ error: null });
     mocks.recordSecurityEvent.mockReset();
   });
 
@@ -119,5 +124,20 @@ describe("POST /api/onboarding", () => {
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ requiresEmailVerification: true });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("permite repetir un registro pendiente y reenvía la confirmación", async () => {
+    state.existingSlug = { id: "business-id" };
+    state.membership = { user_id: "owner-user" };
+    state.ownerLookup = { id: "owner-user", email: "ana@example.com" };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(202);
+    expect(mocks.resend).toHaveBeenCalledWith({
+      type: "signup",
+      email: "ana@example.com",
+      options: { emailRedirectTo: "https://canchaflow.example/auth/callback" },
+    });
   });
 });

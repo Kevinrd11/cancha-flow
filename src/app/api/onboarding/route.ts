@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordSecurityEvent } from "@/lib/auth/audit";
-import { enforceAuthRateLimit, hasTrustedOrigin } from "@/lib/auth/request-security";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 import { onboardingSchema } from "@/lib/validation";
 import { getAppUrl, hasSupabaseAdminEnv, hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
 import { createAdminSupabaseClient, createIsolatedSupabaseClient, createServerSupabaseClient } from "@/lib/supabase/server";
@@ -16,20 +16,43 @@ export async function POST(request: Request) {
   if (!hasSupabaseEnv()) return NextResponse.json({ error: "La autenticación no está configurada" }, { status: 503 });
   if (!hasSupabaseAdminEnv()) return NextResponse.json({ error: "Falta configurar la clave privada del servidor" }, { status: 503 });
 
-  let rateLimit;
-  try {
-    rateLimit = await enforceAuthRateLimit(request, "register", input.email);
-  } catch {
-    return NextResponse.json({ error: "El servicio de registro no está disponible" }, { status: 503 });
-  }
-  if (!rateLimit.allowed) {
-    await recordSecurityEvent({ action: "auth.register", outcome: "blocked", requestFingerprint: rateLimit.fingerprint });
-    return NextResponse.json({ error: "Demasiados intentos. Espera antes de volver a intentarlo." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } });
-  }
-
   const admin = createAdminSupabaseClient();
   const { data: existing } = await admin.from("businesses").select("id").eq("slug", input.slug).maybeSingle();
-  if (existing) return NextResponse.json({ error: "Ese enlace público ya está en uso" }, { status: 409 });
+  if (existing) {
+    const { data: ownerMembership } = await admin
+      .from("business_members")
+      .select("user_id")
+      .eq("business_id", existing.id)
+      .eq("role", "owner")
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+    const { data: ownerAuth } = ownerMembership?.user_id
+      ? await admin.auth.admin.getUserById(ownerMembership.user_id)
+      : { data: { user: null } };
+    const existingOwner = ownerAuth.user;
+
+    if (existingOwner?.email?.toLowerCase() === input.email) {
+      if (existingOwner.email_confirmed_at) {
+        return NextResponse.json({ error: "Esta cuenta ya está registrada. Inicie sesión para abrir su panel." }, { status: 409 });
+      }
+
+      const resendClient = await createServerSupabaseClient();
+      await resendClient.auth.resend({
+        type: "signup",
+        email: input.email,
+        options: { emailRedirectTo: `${getAppUrl()}/auth/callback` },
+      });
+      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingOwner.id, businessId: existing.id });
+      return NextResponse.json({
+        publicUrl,
+        requiresEmailVerification: true,
+        message: "La cuenta ya estaba creada. Enviamos un nuevo correo de confirmación.",
+      }, { status: 202 });
+    }
+
+    return NextResponse.json({ error: "Ese enlace público ya está en uso. Pruebe otro nombre para el enlace." }, { status: 409 });
+  }
 
   const onboardingParams = {
     p_user_id: "",
@@ -47,7 +70,7 @@ export async function POST(request: Request) {
     options: { emailRedirectTo: `${getAppUrl()}/auth/callback`, data: { full_name: sanitizeText(input.ownerName) } },
   });
   if (authError || !authData.user) {
-    await recordSecurityEvent({ action: "auth.register", outcome: "failure", requestFingerprint: rateLimit.fingerprint });
+    await recordSecurityEvent({ action: "auth.register", outcome: "failure" });
     return NextResponse.json({ requiresEmailVerification: true }, { status: 202 });
   }
 
@@ -67,14 +90,14 @@ export async function POST(request: Request) {
 
       const { error: upgradeError } = await admin.rpc("complete_business_onboarding", { ...onboardingParams, p_user_id: existingUser.id });
       if (upgradeError) {
-        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingUser.id, requestFingerprint: rateLimit.fingerprint });
+        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingUser.id });
         return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
       }
-      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingUser.id, requestFingerprint: rateLimit.fingerprint });
+      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingUser.id });
       return NextResponse.json({ publicUrl, requiresEmailVerification: false }, { status: 201 });
     }
 
-    await recordSecurityEvent({ action: "auth.register", outcome: "success", requestFingerprint: rateLimit.fingerprint });
+    await recordSecurityEvent({ action: "auth.register", outcome: "success" });
     return NextResponse.json({ requiresEmailVerification: true }, { status: 202 });
   }
   if (authData.session) {
@@ -86,9 +109,9 @@ export async function POST(request: Request) {
   const { error } = await admin.rpc("complete_business_onboarding", { ...onboardingParams, p_user_id: authData.user.id });
   if (error) {
     await admin.auth.admin.deleteUser(authData.user.id);
-    await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: authData.user.id, requestFingerprint: rateLimit.fingerprint });
+    await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: authData.user.id });
     return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
   }
-  await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: authData.user.id, requestFingerprint: rateLimit.fingerprint });
+  await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: authData.user.id });
   return NextResponse.json({ publicUrl, requiresEmailVerification: true }, { status: 201 });
 }

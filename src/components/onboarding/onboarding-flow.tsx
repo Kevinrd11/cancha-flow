@@ -7,6 +7,12 @@ import { cn } from "@/lib/utils";
 
 const steps = ["Cuenta", "Cancha", "Horarios", "Plan"];
 const sports = ["Fútbol 5", "Fútbol 7", "Fútbol 9"];
+const fieldSteps: Record<string, number> = {
+  ownerName: 0, email: 0, password: 0,
+  businessName: 1, slug: 1, phone: 1, location: 1, description: 1, currency: 1, timezone: 1,
+  courtName: 2, sport: 2, openingTime: 2, closingTime: 2, reservationMinutes: 2, hourlyRate: 2,
+  billingInterval: 3, plan: 3,
+};
 
 export function OnboardingFlow() {
   const [step, setStep] = useState(0);
@@ -22,7 +28,13 @@ export function OnboardingFlow() {
 
   async function submit() {
     const parsed = onboardingSchema.safeParse(form);
-    if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Revise la información"); return; }
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = String(issue?.path[0] ?? "");
+      setStep(fieldSteps[field] ?? step);
+      setError(issue?.message ?? "Revise la información ingresada");
+      return;
+    }
     setLoading(true); setError("");
     try {
       const response = await fetch("/api/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parsed.data) });

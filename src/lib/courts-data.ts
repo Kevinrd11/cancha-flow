@@ -1,6 +1,6 @@
 import type { BusinessSettings } from "@/lib/types";
 
-export type CourtSurface = "Sintética" | "Natural";
+export type CourtSurface = "Sintética" | "Natural" | "Por definir";
 export type CourtModality = "Fútbol 5" | "Fútbol 7" | "Fútbol 9";
 
 export type CourtListing = {
@@ -28,6 +28,7 @@ export type CourtListing = {
   active: boolean;
   nextAvailable: string;
   paymentInstructions: string;
+  publicPath?: string;
 };
 
 // Catálogo de demostración del MVP. Esta es la única fuente para textos,

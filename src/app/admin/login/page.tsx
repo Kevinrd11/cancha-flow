@@ -1,4 +1,6 @@
 import { LoginForm } from "@/components/admin/login-form";
+import { isDemoMode } from "@/lib/supabase/env";
+import Link from "next/link";
 
 export default function AdminLoginPage() {
   return (
@@ -7,7 +9,9 @@ export default function AdminLoginPage() {
         <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-green text-xl font-bold text-white">C</span><div><p className="text-xl font-bold text-navy">CanchaFlow</p><p className="text-xs text-muted">Acceso administrativo</p></div></div>
         <h1 className="mt-9 text-4xl font-bold tracking-[-.04em] text-navy">Bienvenido de nuevo.</h1>
         <p className="mt-2 text-muted">Ingrese para administrar su cancha, horarios y reservas.</p>
-        <LoginForm />
+        <LoginForm demoMode={isDemoMode()} />
+        <p className="mt-5 text-center text-sm text-muted">¿Todavía no tiene cuenta? <Link href="/registro" className="font-bold text-green">Registre su cancha</Link></p>
+        <p className="mt-3 text-center text-sm text-muted">¿Quiere reservar? <Link href="/canchas" className="font-bold text-green">Busque una cancha sin registrarse</Link></p>
       </div>
     </main>
   );

@@ -14,6 +14,9 @@ MVP local para encontrar y reservar canchas de fútbol en Ciudad Quesada, San Ca
 - `/canchas` — explorador con los filtros esenciales.
 - `/canchas/[slug]` — galería, información, servicios, reglas, contacto, mapa y reserva.
 - `/registro` — presentación del servicio y registro guiado de una cancha.
+- `/registro` y `/admin/login` — alta y acceso exclusivo para propietarios de canchas.
+- Los jugadores reservan desde `/canchas` sin crear una cuenta.
+- `/recuperar-contrasena` — recuperación con respuesta no enumerable.
 - `/admin` — resumen privado del propietario.
 - `/admin/reservas` — lista y gestión de solicitudes.
 - `/admin/calendario` — agenda, reservas manuales y bloqueos.
@@ -25,7 +28,7 @@ Los antiguos módulos de gastos, reportes, equipo, superadministración e ingres
 
 ## Datos y seguridad
 
-Sin variables de Supabase, la aplicación usa un catálogo centralizado de cuatro canchas ficticias de demostración en `src/lib/courts-data.ts`. Reservas y bloqueos demo viven en memoria durante la ejecución local, por lo que se reinician al reiniciar el servidor.
+El modo administrativo de demostración solo se habilita explícitamente con `CANCHAFLOW_DEMO_MODE=true` y nunca funciona bajo `NODE_ENV=production`. Reservas y bloqueos demo viven en memoria durante la ejecución local.
 
 Con Supabase configurado:
 
@@ -33,6 +36,9 @@ Con Supabase configurado:
 - Proxy protege las rutas del panel;
 - cada Route Handler vuelve a validar sesión y pertenencia;
 - RLS aplica el aislamiento en PostgreSQL;
+- las sesiones se almacenan en cookies `HttpOnly`, `SameSite=Lax` y `Secure` en producción;
+- registro, login y recuperación tienen rate limiting distribuido;
+- los cambios de contraseña revocan las sesiones anteriores;
 - las funciones transaccionales usan bloqueo por cancha y fecha;
 - las restricciones de exclusión impiden reservas activas superpuestas;
 - una solicitud pública nace en estado `pending` y no exige pago en línea.
@@ -47,31 +53,38 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Variables opcionales:
+Variables requeridas para autenticación en producción:
 
 | Variable | Uso |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sesiones y consultas con RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | Onboarding y operaciones públicas privilegiadas |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Sesiones y consultas con RLS; también acepta la clave heredada `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `SUPABASE_SECRET_KEY` | Onboarding, rate limiting, auditoría y Auth administrativo; también acepta `SUPABASE_SERVICE_ROLE_KEY` |
 | `NEXT_PUBLIC_APP_URL` | URL canónica de la aplicación |
+| `AUTH_RATE_LIMIT_PEPPER` | Seudonimización HMAC de identificadores de rate limit |
+| `CANCHAFLOW_DEMO_MODE` | Modo demo explícito, solo desarrollo |
+
+Revise [el checklist de autenticación en producción](docs/auth-production.md) antes de desplegar.
 
 ## Base de datos
 
-Ejecute las migraciones en orden y luego el seed:
+Ejecute las migraciones en orden:
 
 ```text
-supabase/migrations/202607210001_initial_schema.sql
+supabase/migrations/20260721000100_initial_schema.sql
 supabase/migrations/20260721000150_multitenant_roles.sql
 supabase/migrations/20260721000160_canchaflow_multitenant.sql
 supabase/migrations/20260721000170_local_football_mvp.sql
-supabase/seed.sql
+supabase/migrations/20260722000180_auth_hardening.sql
 ```
+
+`supabase/seed.sql` contiene datos de demostración y debe usarse únicamente en desarrollo local, nunca en producción.
 
 ## Verificación
 
 ```bash
 npm run lint
+npm run typecheck
 npm test
 npm run build
 ```

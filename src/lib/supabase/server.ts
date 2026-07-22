@@ -2,14 +2,17 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { authCookieOptions } from "@/lib/auth/cookies";
+import { getSupabasePublishableKey, getSupabaseSecretKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabasePublishableKey();
   if (!url || !key) throw new Error("Supabase no está configurado");
 
   return createServerClient(url, key, {
+    cookieOptions: authCookieOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -28,10 +31,19 @@ export async function createServerSupabaseClient() {
 }
 
 export function createAdminSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabaseSecretKey();
   if (!url || !key) throw new Error("El cliente administrativo de Supabase no está configurado");
   return createSupabaseClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+export function createIsolatedSupabaseClient() {
+  const url = getSupabaseUrl();
+  const key = getSupabasePublishableKey();
+  if (!url || !key) throw new Error("Supabase no está configurado");
+  return createSupabaseClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
 }

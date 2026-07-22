@@ -2,7 +2,7 @@ import "server-only";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Business, Court } from "@/lib/types";
+import type { Business, BusinessSettings, Court } from "@/lib/types";
 
 export const demoBusiness: Business = {
   id: DEFAULT_SETTINGS.businessId,
@@ -65,9 +65,14 @@ export const demoCourts: Court[] = [
   },
 ];
 
-export async function getBusinessBySlug(slug: string): Promise<{ business: Business; courts: Court[] } | null> {
+export async function getBusinessBySlug(slug: string): Promise<{ business: Business; courts: Court[]; settings: Record<string, BusinessSettings> } | null> {
   if (!hasSupabaseEnv()) {
-    return slug === demoBusiness.slug ? { business: demoBusiness, courts: demoCourts.filter((court) => court.active) } : null;
+    const courts = demoCourts.filter((court) => court.active);
+    return slug === demoBusiness.slug ? {
+      business: demoBusiness,
+      courts,
+      settings: Object.fromEntries(courts.map((court) => [court.id, { ...DEFAULT_SETTINGS, fieldId: court.id, fieldName: court.name, sport: court.sport, description: court.description, hourlyRate: court.hourlyRate, minimumMinutes: court.reservationMinutes }])),
+    } : null;
   }
 
   try {
@@ -85,6 +90,28 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
       .eq("business_id", business.id)
       .eq("active", true)
       .order("name");
+    const courtIds = (courts ?? []).map((court) => court.id);
+    const { data: rawSettings } = courtIds.length ? await supabase
+      .from("business_settings")
+      .select("field_id, whatsapp_phone, sinpe_phone, opening_time, closing_time, minimum_reservation_minutes, hold_minutes, cancellation_policy, non_working_days")
+      .eq("business_id", business.id)
+      .in("field_id", courtIds) : { data: [] };
+    const settingsByField = new Map((rawSettings ?? []).map((settings) => [settings.field_id, settings]));
+    const mappedCourts: Court[] = (courts ?? []).map((court) => ({
+      id: court.id,
+      businessId: court.business_id,
+      name: court.name,
+      slug: court.slug,
+      sport: court.sport ?? "Deporte",
+      description: court.description ?? "",
+      hourlyRate: Number(court.hourly_rate),
+      reservationMinutes: court.reservation_minutes ?? 60,
+      capacity: court.capacity ?? 1,
+      active: court.active,
+      rules: Array.isArray(court.rules) ? court.rules : [],
+      amenities: Array.isArray(court.amenities) ? court.amenities : [],
+      imageUrl: court.image_url ?? undefined,
+    }));
     return {
       business: {
         id: business.id,
@@ -102,20 +129,32 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
         subscriptionStatus: business.subscription_status,
         planName: "Pro",
       },
-      courts: (courts ?? []).map((court) => ({
-        id: court.id,
-        businessId: court.business_id,
-        name: court.name,
-        slug: court.slug,
-        sport: court.sport ?? "Deporte",
-        description: court.description ?? "",
-        hourlyRate: Number(court.hourly_rate),
-        reservationMinutes: court.reservation_minutes ?? 60,
-        capacity: court.capacity ?? 1,
-        active: court.active,
-        rules: Array.isArray(court.rules) ? court.rules : [],
-        amenities: Array.isArray(court.amenities) ? court.amenities : [],
-        imageUrl: court.image_url ?? undefined,
+      courts: mappedCourts,
+      settings: Object.fromEntries(mappedCourts.map((court) => {
+        const settings = settingsByField.get(court.id);
+        return [court.id, {
+          businessId: business.id,
+          businessName: business.name,
+          businessSlug: business.slug,
+          fieldId: court.id,
+          fieldName: court.name,
+          sport: court.sport,
+          description: court.description,
+          location: business.location,
+          email: business.email ?? "",
+          whatsappPhone: business.whatsapp_phone || settings?.whatsapp_phone || "",
+          sinpePhone: settings?.sinpe_phone ?? "",
+          currency: business.currency,
+          timezone: business.timezone,
+          primaryColor: business.primary_color,
+          hourlyRate: court.hourlyRate,
+          openingTime: settings?.opening_time?.slice(0, 5) ?? "08:00",
+          closingTime: settings?.closing_time?.slice(0, 5) ?? "22:00",
+          minimumMinutes: settings?.minimum_reservation_minutes ?? court.reservationMinutes,
+          holdMinutes: settings?.hold_minutes ?? 20,
+          cancellationPolicy: settings?.cancellation_policy ?? "Las cancelaciones se coordinan directamente con el centro deportivo.",
+          nonWorkingDays: Array.isArray(settings?.non_working_days) ? settings.non_working_days : [],
+        } satisfies BusinessSettings];
       })),
     };
   } catch {

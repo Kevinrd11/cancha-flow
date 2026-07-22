@@ -12,14 +12,12 @@ import {
   Store,
   Zap,
 } from "lucide-react";
-import { CourtCard } from "@/components/courts/court-card";
 import { MarketingFooter } from "@/components/marketing/marketing-footer";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
-import { demoCourts, popularSectors } from "@/lib/courts-data";
+import { popularSectors } from "@/lib/courts-data";
 import { todayInCostaRica } from "@/lib/utils";
 
 export default function Home() {
-  const featured = demoCourts.filter((court) => court.featured);
   const today = todayInCostaRica();
   return (
     <main className="bg-white">
@@ -42,17 +40,6 @@ export default function Home() {
             <SearchField icon={Clock3} label="Hora aproximada"><input type="time" name="hora" defaultValue="18:00" /></SearchField>
             <button className="inline-flex min-h-14 items-center justify-center gap-2 self-end rounded-xl bg-green px-6 font-bold text-white hover:bg-green-dark"><Search size={18} /> Buscar canchas</button>
           </form>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24">
-        <SectionHeading eyebrow="Favoritas locales" title="Canchas destacadas" text="Opciones cerca de Ciudad Quesada para resolver la mejenga sin pasar horas escribiendo mensajes." action={<Link href="/canchas" className="font-bold text-green">Ver todas <ArrowRight className="inline" size={16} /></Link>} />
-        <div className="mt-10 grid gap-6 lg:grid-cols-2">{featured.map((court, index) => <CourtCard key={court.id} court={court} priority={index === 0} />)}</div>
-      </section>
-
-      <section className="border-y border-line bg-paper py-20 sm:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6"><SectionHeading eyebrow="Para jugar hoy" title="Horarios que todavía están libres" text="Consulte la disponibilidad real de cada cancha antes de enviar su solicitud." />
-          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{demoCourts.map((court) => <Link key={court.id} href={`/canchas/${court.slug}#reservar`} className="group rounded-2xl border border-line bg-white p-5 transition hover:border-green/30 hover:shadow-lg"><span className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-green"><Clock3 size={19} /></span><h3 className="mt-5 text-lg font-bold text-navy">{court.name}</h3><p className="mt-1 text-sm text-slate-500">{court.sector}</p><p className="mt-5 font-bold text-green">{court.nextAvailable}</p></Link>)}</div>
         </div>
       </section>
 

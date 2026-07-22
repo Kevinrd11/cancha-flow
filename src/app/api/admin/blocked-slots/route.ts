@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireBusinessPermission } from "@/lib/auth/session";
 import { sanitizeText } from "@/lib/utils";
 import { createDemoBlockedSlot } from "@/lib/demo-data";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
 const schema = z.object({
   fieldId: z.string().uuid(),
@@ -13,7 +14,8 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin();
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
+  const auth = await requireBusinessPermission("schedule:manage");
   if (!auth) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || parsed.data.endTime <= parsed.data.startTime) return NextResponse.json({ error: "Datos de bloqueo inválidos" }, { status: 400 });

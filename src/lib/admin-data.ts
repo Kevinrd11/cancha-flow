@@ -1,20 +1,22 @@
 import "server-only";
 import { demoReservations } from "@/lib/demo-data";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
 import type { Reservation } from "@/lib/types";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function getAdminReservations(): Promise<Reservation[]> {
-  if (!hasSupabaseEnv()) return [...demoReservations];
+  if (isDemoMode()) return [...demoReservations];
+  if (!hasSupabaseEnv()) return [];
   try {
     const auth = await requireAdmin();
-    if (!auth || auth.demo) return [...demoReservations];
-    let query = auth.supabase
+    if (!auth) return [];
+    if (auth.demo) return [...demoReservations];
+    const query = auth.supabase
       .from("reservations")
       .select("id, business_id, field_id, reservation_code, reservation_date, start_time, end_time, status, payment_status, total, source, notes, customers(full_name, phone, email), fields(name)")
       .order("reservation_date")
-      .order("start_time");
-    if (auth.businessId) query = query.eq("business_id", auth.businessId);
+      .order("start_time")
+      .eq("business_id", auth.businessId);
     const { data, error } = await query;
     if (error) throw error;
     return (data ?? []).map((item) => {
@@ -42,6 +44,6 @@ export async function getAdminReservations(): Promise<Reservation[]> {
       };
     });
   } catch {
-    return [...demoReservations];
+    return [];
   }
 }

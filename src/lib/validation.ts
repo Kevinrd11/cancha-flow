@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailAddressSchema, passwordSchema } from "@/lib/auth/validation";
 import { reservationStatuses } from "@/lib/types";
 
 const phone = z
@@ -45,7 +46,7 @@ export const settingsSchema = z.object({
   businessName: z.string().trim().min(2).max(100),
   description: z.string().trim().min(10).max(1200),
   location: z.string().trim().min(3).max(240),
-  email: z.email().trim(),
+  email: emailAddressSchema,
   currency: z.string().length(3),
   timezone: z.string().trim().min(3).max(80),
   fieldName: z.string().trim().min(2).max(100),
@@ -58,12 +59,12 @@ export const settingsSchema = z.object({
   holdMinutes: z.number().int().min(5).max(180),
   cancellationPolicy: z.string().trim().min(10).max(2000),
   nonWorkingDays: z.array(z.iso.date()).max(100).default([]),
-});
+}).strict();
 
 export const onboardingSchema = z.object({
   ownerName: z.string().trim().min(3).max(100),
-  email: z.email().trim(),
-  password: z.string().min(8).max(72),
+  email: emailAddressSchema,
+  password: passwordSchema,
   businessName: z.string().trim().min(2).max(100),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80),
   phone,
@@ -79,6 +80,9 @@ export const onboardingSchema = z.object({
   hourlyRate: z.number().positive().max(10_000_000),
   billingInterval: z.enum(["monthly", "annual"]),
   plan: z.enum(["starter", "pro", "scale"]),
+}).strict().refine((value) => value.closingTime > value.openingTime, {
+  message: "La hora de cierre debe ser posterior a la apertura",
+  path: ["closingTime"],
 });
 
 export const MAX_PAYMENT_FILE_SIZE = 5 * 1024 * 1024;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowRight, CalendarCheck, CircleDollarSign, Clock3, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarCheck, CircleDollarSign, Clock3, Settings2, Sparkles, Store, TriangleAlert } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAdminReservations } from "@/lib/admin-data";
@@ -26,6 +26,7 @@ export default async function AdminDashboard() {
   return <main>
     <AdminPageHeader eyebrow={format(new Date(`${today}T12:00:00`), "EEEE d 'de' MMMM", { locale: es })} title="Resumen" description={`Lo importante de ${settings.fieldName}, sin ruido.`} actions={<Link href="/admin/calendario" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green px-4 font-bold text-white">Nueva reserva <ArrowRight size={17} /></Link>} />
     <div className="p-4 sm:p-7 lg:p-9">
+      {reservations.length === 0 && <section className="mb-6 rounded-3xl bg-navy p-6 text-white sm:p-8"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center"><div className="max-w-2xl"><span className="grid size-11 place-items-center rounded-xl bg-lime text-navy"><Sparkles size={21} /></span><h2 className="mt-5 text-3xl font-bold">Tu panel está listo para empezar.</h2><p className="mt-2 leading-7 text-white/60">La cuenta no contiene reservas ni clientes de ejemplo. Personaliza tu cancha, revisa cómo se ve publicada y empieza a administrar solicitudes reales.</p></div><div className="grid shrink-0 gap-3 sm:grid-cols-2 lg:w-[390px]"><Link href="/admin/configuracion" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 font-bold text-navy"><Settings2 size={18} /> Configurar negocio</Link><Link href="/admin/canchas" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/20 px-4 font-bold text-white"><Store size={18} /> Ver mi cancha</Link></div></div></section>}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric icon={CalendarCheck} label="Reservas de hoy" value={String(todayReservations.length)} helper={`${occupiedMinutes / 60} horas ocupadas`} />
         <Metric icon={Clock3} label="Próxima reserva" value={nextReservation ? formatTime(nextReservation.startTime) : "Sin reservas"} helper={nextReservation?.customerName ?? "Agenda libre"} />

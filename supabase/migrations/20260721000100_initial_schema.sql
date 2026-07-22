@@ -1,4 +1,4 @@
--- La Doce: esquema inicial para Supabase/PostgreSQL
+-- Esquema inicial para Supabase/PostgreSQL. Debe ejecutarse antes de las evoluciones multiempresa.
 create extension if not exists pgcrypto;
 create extension if not exists btree_gist;
 

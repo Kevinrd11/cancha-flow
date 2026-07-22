@@ -4,8 +4,10 @@ import { reservationSchema } from "@/lib/validation";
 import { hasSupabaseAdminEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { createDemoReservation } from "@/lib/demo-data";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
 export async function POST(request: Request) {
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   let input: unknown;
   try {
     input = await request.json();

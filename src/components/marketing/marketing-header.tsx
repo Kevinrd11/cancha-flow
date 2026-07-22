@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogIn, Search } from "lucide-react";
+import { LogIn, Search, UserPlus } from "lucide-react";
 
 export function MarketingHeader({ solid = false }: { solid?: boolean }) {
   return (
@@ -16,7 +16,8 @@ export function MarketingHeader({ solid = false }: { solid?: boolean }) {
           <Link href="/#propietarios">Para propietarios</Link>
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/admin/login" className={`hidden min-h-10 items-center gap-2 px-2 text-sm font-bold sm:inline-flex ${solid ? "text-navy" : "text-white"}`}><LogIn size={16} /> Iniciar sesión</Link>
+          <Link href="/admin/login" className={`hidden min-h-10 items-center gap-2 px-2 text-sm font-bold sm:inline-flex ${solid ? "text-navy" : "text-white"}`}><LogIn size={16} /> Acceso propietarios</Link>
+          <Link href="/registro" aria-label="Registrar mi cancha" className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-bold ${solid ? "border-line text-navy" : "border-white/25 text-white"}`}><UserPlus size={17} /> <span className="hidden md:inline">Publicar mi cancha</span></Link>
           <Link href="/canchas" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-lime px-3 text-sm font-bold text-navy sm:px-4"><Search size={17} /> <span className="hidden sm:inline">Buscar cancha</span><span className="sm:hidden">Buscar</span></Link>
         </div>
       </div>

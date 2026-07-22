@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { MAX_PAYMENT_FILE_SIZE, PAYMENT_FILE_TYPES, paymentUploadSchema } from "@/lib/validation";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,7 @@ function hasValidImageSignature(bytes: Uint8Array, type: string) {
 }
 
 export async function POST(request: Request) {
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   const formData = await request.formData();
   const file = formData.get("file");
   const parsed = paymentUploadSchema.safeParse({
@@ -42,9 +45,9 @@ export async function POST(request: Request) {
     const supabase = createAdminSupabaseClient();
     const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
-      .select("id, business_id, reservation_code, public_token, status, expires_at, total")
+      .select("id, business_id, reservation_code, status, expires_at, total")
       .eq("reservation_code", parsed.data.reservationCode)
-      .eq("public_token", parsed.data.publicToken)
+      .eq("public_token_hash", createHash("sha256").update(parsed.data.publicToken).digest("hex"))
       .single();
 
     if (reservationError || !reservation) {

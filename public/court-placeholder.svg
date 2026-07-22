@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" role="img" aria-labelledby="title description">
+  <title id="title">Cancha sin fotografía</title>
+  <desc id="description">Ilustración neutral de una cancha deportiva</desc>
+  <rect width="1200" height="750" fill="#173d2d"/>
+  <rect x="130" y="110" width="940" height="530" rx="24" fill="#216a48" stroke="#d9f99d" stroke-width="8"/>
+  <path d="M600 110v530M130 375h940" stroke="#d9f99d" stroke-width="8" opacity=".9"/>
+  <circle cx="600" cy="375" r="92" fill="none" stroke="#d9f99d" stroke-width="8"/>
+  <rect x="130" y="250" width="150" height="250" fill="none" stroke="#d9f99d" stroke-width="8"/>
+  <rect x="920" y="250" width="150" height="250" fill="none" stroke="#d9f99d" stroke-width="8"/>
+</svg>

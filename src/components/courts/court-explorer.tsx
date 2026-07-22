@@ -11,10 +11,12 @@ import { formatCurrency, todayInCostaRica } from "@/lib/utils";
 type InitialFilters = { sector?: string; fecha?: string; hora?: string; precio?: string; tipo?: string };
 
 export function CourtExplorer({ courts, initialFilters }: { courts: CourtListing[]; initialFilters: InitialFilters }) {
+  const highestPrice = useMemo(() => Math.max(30000, ...courts.map((court) => Math.ceil(court.hourlyRate / 1000) * 1000)), [courts]);
+  const sectors = useMemo(() => Array.from(new Set([...popularSectors, ...courts.map((court) => court.sector)])).filter(Boolean), [courts]);
   const [sector, setSector] = useState(initialFilters.sector ?? "");
   const [date, setDate] = useState(initialFilters.fecha ?? todayInCostaRica());
   const [time, setTime] = useState(initialFilters.hora ?? "");
-  const [maxPrice, setMaxPrice] = useState(Number(initialFilters.precio) || 30000);
+  const [maxPrice, setMaxPrice] = useState(Number(initialFilters.precio) || highestPrice);
   const [modality, setModality] = useState(initialFilters.tipo ?? "");
   const [availability, setAvailability] = useState<Record<string, boolean>>({});
   const [loadingAvailability, setLoadingAvailability] = useState(Boolean(initialFilters.hora));
@@ -59,7 +61,7 @@ export function CourtExplorer({ courts, initialFilters }: { courts: CourtListing
     setSector("");
     setDate(todayInCostaRica());
     setTime("");
-    setMaxPrice(30000);
+    setMaxPrice(highestPrice);
     setModality("");
   }
 
@@ -71,8 +73,8 @@ export function CourtExplorer({ courts, initialFilters }: { courts: CourtListing
           <div className="mt-6 grid gap-5">
             <Filter label="Fecha" icon={CalendarDays}><input type="date" min={todayInCostaRica()} value={date} onChange={(event) => { setLoadingAvailability(Boolean(time)); setAvailabilityError(""); setDate(event.target.value); }} /></Filter>
             <Filter label="Hora aproximada" icon={Clock3}><input type="time" step="1800" value={time} onChange={(event) => { setLoadingAvailability(Boolean(event.target.value)); setAvailabilityError(""); setTime(event.target.value); }} /></Filter>
-            <Filter label="Sector" icon={MapPin}><Select value={sector} onChange={setSector}><option value="">Todos los sectores</option>{popularSectors.map((item) => <option key={item}>{item}</option>)}</Select></Filter>
-            <Filter label={`Precio máximo · ${formatCurrency(maxPrice)}`} icon={WalletCards}><input type="range" min="15000" max="30000" step="1000" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="accent-green" /></Filter>
+            <Filter label="Sector" icon={MapPin}><Select value={sector} onChange={setSector}><option value="">Todos los sectores</option>{sectors.map((item) => <option key={item}>{item}</option>)}</Select></Filter>
+            <Filter label={`Precio máximo · ${formatCurrency(maxPrice)}`} icon={WalletCards}><input type="range" min="1000" max={highestPrice} step="1000" value={maxPrice} onChange={(event) => setMaxPrice(Number(event.target.value))} className="accent-green" /></Filter>
             <Filter label="Tipo o tamaño" icon={Search}><Select value={modality} onChange={setModality}><option value="">Todas las modalidades</option><option>Fútbol 5</option><option>Fútbol 7</option><option>Fútbol 9</option></Select></Filter>
           </div>
           {loadingAvailability && <p className="mt-5 flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="animate-spin" size={16} /> Verificando disponibilidad…</p>}

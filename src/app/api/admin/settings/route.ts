@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireBusinessPermission } from "@/lib/auth/session";
 import { settingsSchema } from "@/lib/validation";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdmin();
-  if (!auth) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
+  const auth = await requireBusinessPermission("business:configure");
+  if (!auth) return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   const parsed = settingsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Configuración inválida" }, { status: 400 });
   if (auth.demo) return NextResponse.json({ ok: true, demo: true });

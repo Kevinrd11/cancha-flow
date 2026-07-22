@@ -3,8 +3,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { addMinutesToTime, sanitizeText } from "@/lib/utils";
 import { adminReservationSchema, reservationUpdateSchema } from "@/lib/validation";
 import { createDemoReservation, updateDemoReservation } from "@/lib/demo-data";
+import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
 export async function POST(request: Request) {
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   const auth = await requireAdmin();
   if (!auth) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const parsed = adminReservationSchema.safeParse(await request.json().catch(() => null));
@@ -58,6 +60,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   const auth = await requireAdmin();
   if (!auth) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const parsed = reservationUpdateSchema.safeParse(await request.json().catch(() => null));

@@ -1,13 +1,29 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authCookieOptions } from "@/lib/auth/cookies";
+import { getSupabasePublishableKey, getSupabaseUrl, isDemoMode } from "@/lib/supabase/env";
+
+function redirectWithCookies(url: URL, source: NextResponse) {
+  const redirect = NextResponse.redirect(url);
+  source.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
+}
 
 export async function proxy(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return NextResponse.next({ request });
+  const url = getSupabaseUrl();
+  const key = getSupabasePublishableKey();
+  const isLogin = request.nextUrl.pathname === "/admin/login";
+  if (!url || !key) {
+    if (isDemoMode() || isLogin) return NextResponse.next({ request });
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/admin/login";
+    loginUrl.searchParams.set("error", "configuration");
+    return NextResponse.redirect(loginUrl);
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, key, {
+    cookieOptions: authCookieOptions,
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(cookiesToSet) {
@@ -19,12 +35,11 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data: { user } } = await supabase.auth.getUser();
-  const isLogin = request.nextUrl.pathname === "/admin/login";
   const isPlatform = request.nextUrl.pathname.startsWith("/plataforma");
-  if (!user && !isLogin) {
+  if ((!user || !user.email_confirmed_at) && !isLogin) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/admin/login";
-    return NextResponse.redirect(loginUrl);
+    return redirectWithCookies(loginUrl, response);
   }
 
   if (user) {
@@ -36,23 +51,30 @@ export async function proxy(request: NextRequest) {
     const isPlatformAdmin = profile?.role === "platform_admin";
     const { data: membership } = isPlatformAdmin ? { data: null } : await supabase
       .from("business_members")
-      .select("business_id")
+      .select("business_id, role")
       .eq("user_id", user.id)
       .eq("active", true)
       .in("role", ["owner", "staff"])
       .limit(1)
       .maybeSingle();
-    const canManageBusiness = isPlatformAdmin || (["admin", "owner", "staff"].includes(profile?.role ?? "") && Boolean(membership));
-    if ((!profile || !canManageBusiness || !profile.active || (isPlatform && !isPlatformAdmin)) && !isLogin) {
+    const canManageBusiness = Boolean(membership && ["owner", "staff"].includes(membership.role));
+    const ownerOnlyPath = request.nextUrl.pathname.startsWith("/admin/configuracion") || request.nextUrl.pathname.startsWith("/admin/canchas");
+    if ((!profile || !profile.active || (isPlatform && !isPlatformAdmin) || (!isPlatform && !isLogin && (!canManageBusiness || isPlatformAdmin))) && !isLogin) {
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/admin/login";
-      loginUrl.searchParams.set("error", "unauthorized");
-      return NextResponse.redirect(loginUrl);
+      loginUrl.pathname = isPlatformAdmin ? "/plataforma" : "/admin/login";
+      if (!isPlatformAdmin) loginUrl.searchParams.set("error", "unauthorized");
+      return redirectWithCookies(loginUrl, response);
     }
-    if (isLogin && profile?.active && canManageBusiness) {
+    if (ownerOnlyPath && membership?.role !== "owner") {
       const adminUrl = request.nextUrl.clone();
       adminUrl.pathname = "/admin";
-      return NextResponse.redirect(adminUrl);
+      adminUrl.searchParams.set("error", "insufficient_role");
+      return redirectWithCookies(adminUrl, response);
+    }
+    if (isLogin && profile?.active && (canManageBusiness || isPlatformAdmin)) {
+      const adminUrl = request.nextUrl.clone();
+      adminUrl.pathname = isPlatformAdmin ? "/plataforma" : "/admin";
+      return redirectWithCookies(adminUrl, response);
     }
   }
 

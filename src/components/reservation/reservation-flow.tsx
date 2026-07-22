@@ -16,6 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getDisplayTimeSlots } from "@/lib/availability";
 import type { BusinessSettings, TimeSlot } from "@/lib/types";
 import {
   addMinutesToTime,
@@ -23,7 +24,6 @@ import {
   formatCurrency,
   formatDate,
   formatTime,
-  timeToMinutes,
   todayInCostaRica,
 } from "@/lib/utils";
 import { reservationSchema } from "@/lib/validation";
@@ -88,21 +88,8 @@ export function ReservationFlow({
     return () => controller.abort();
   }, [date, settings.fieldId]);
 
-  const selectableSlots = useMemo(() => {
-    const neededSegments = duration / 30;
-    return slots.filter((slot, index) => {
-      if (slot.state !== "available") return false;
-      const run = slots.slice(index, index + neededSegments);
-      return (
-        run.length === neededSegments &&
-        run.every(
-          (item, offset) =>
-            item.state === "available" &&
-            timeToMinutes(item.time) === timeToMinutes(slot.time) + offset * 30,
-        )
-      );
-    });
-  }, [duration, slots]);
+  const displaySlots = useMemo(() => getDisplayTimeSlots(slots, duration), [duration, slots]);
+  const hasSelectableSlots = displaySlots.some((slot) => slot.selectable);
 
   const total = (settings.hourlyRate * duration) / 60;
   const endTime = startTime ? addMinutesToTime(startTime, duration) : "";
@@ -202,19 +189,41 @@ export function ReservationFlow({
               </div>
 
               <div className="mt-8 flex items-center justify-between gap-3">
-                <h3 className="text-xl font-bold text-navy">Horarios disponibles</h3>
+                <h3 className="text-xl font-bold text-navy">Estado de los horarios</h3>
                 <span className="flex items-center gap-1 text-xs text-muted"><span className="size-2 rounded-full bg-emerald-500" /> En tiempo real</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-muted" aria-label="Significado de los colores">
+                <SlotLegend color="bg-emerald-500" label="Disponible" />
+                <SlotLegend color="bg-amber-400" label="Pendiente de confirmar" />
+                <SlotLegend color="bg-rose-500" label="Reservado" />
+                <SlotLegend color="bg-slate-400" label="No disponible" />
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                 {loadingSlots
                   ? Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-13 animate-pulse rounded-xl bg-paper" />)
-                  : selectableSlots.map((slot) => (
-                      <button key={slot.time} onClick={() => setStartTime(slot.time)} className={cn("min-h-13 rounded-xl border px-3 font-bold transition", startTime === slot.time ? "border-forest bg-forest text-white" : "border-line bg-white hover:border-lime-dark hover:bg-lime/20")} aria-pressed={startTime === slot.time}>
-                        {slot.label}
+                  : displaySlots.map((slot) => (
+                      <button
+                        key={slot.time}
+                        type="button"
+                        disabled={!slot.selectable}
+                        onClick={() => setStartTime(slot.time)}
+                        className={cn(
+                          "min-h-16 rounded-xl border px-3 py-2 text-left font-bold transition",
+                          slot.displayState === "available" && "border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-600 hover:bg-emerald-100",
+                          slot.displayState === "pending" && "cursor-not-allowed border-amber-300 bg-amber-100 text-amber-900",
+                          slot.displayState === "reserved" && "cursor-not-allowed border-rose-300 bg-rose-100 text-rose-900",
+                          slot.displayState === "blocked" && "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500",
+                          startTime === slot.time && "!border-forest !bg-forest !text-white ring-2 ring-forest/20",
+                        )}
+                        aria-label={`${slot.label}, ${SLOT_STATE_LABELS[slot.displayState]}`}
+                        aria-pressed={startTime === slot.time}
+                      >
+                        <span className="block">{slot.label}</span>
+                        <span className="mt-0.5 block text-[11px] font-semibold opacity-75">{SLOT_STATE_LABELS[slot.displayState]}</span>
                       </button>
                     ))}
               </div>
-              {!loadingSlots && !error && selectableSlots.length === 0 && (
+              {!loadingSlots && !error && !hasSelectableSlots && (
                 <div className="mt-4 rounded-2xl bg-amber-50 p-5 text-amber-900">No hay horarios con esa duración. Pruebe otra fecha.</div>
               )}
               {error && <ErrorMessage message={error} />}
@@ -249,7 +258,7 @@ export function ReservationFlow({
               <div className="mx-auto grid size-20 place-items-center rounded-full bg-lime"><CheckCircle2 size={38} /></div>
               <p className="mt-7 text-sm font-bold uppercase tracking-[.2em] text-forest/60">Solicitud recibida</p>
               <h3 className="display mt-2 text-5xl font-black uppercase">¡Listo para la mejenga!</h3>
-              <p className="mx-auto mt-4 max-w-md text-muted">La reserva quedó pendiente de confirmación por parte de la cancha. No se realizó ningún cobro en línea.</p>
+              <p className="mx-auto mt-4 max-w-md text-muted">La reserva quedó pendiente de confirmación por parte de la cancha y el horario permanecerá bloqueado para otras personas. No se realizó ningún cobro en línea.</p>
               <div className="mx-auto mt-7 max-w-sm rounded-2xl border border-line bg-paper p-5">
                 <p className="text-xs font-bold uppercase tracking-widest text-muted">Número de solicitud</p>
                 <p className="display mt-1 text-4xl font-black">{created?.reservationCode}</p>
@@ -287,4 +296,15 @@ function SummaryRow({ icon: Icon, label, value }: { icon: typeof CalendarDays; l
 
 function ErrorMessage({ message }: { message: string }) {
   return <p role="alert" className="mt-5 rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700">{message}</p>;
+}
+
+const SLOT_STATE_LABELS = {
+  available: "Disponible",
+  pending: "Pendiente",
+  reserved: "Reservado",
+  blocked: "No disponible",
+} as const;
+
+function SlotLegend({ color, label }: { color: string; label: string }) {
+  return <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-full", color)} />{label}</span>;
 }

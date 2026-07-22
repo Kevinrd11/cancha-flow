@@ -1,43 +1,54 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type AuthUser = { id: string; email?: string; email_confirmed_at?: string };
+type AuthError = { message: string; code?: string; status?: number };
+
 const state = vi.hoisted(() => ({
   existingSlug: null as null | { id: string },
   profile: { role: "customer", active: true } as null | { role: string; active: boolean },
   membership: null as null | { id?: string; user_id?: string },
   ownerLookup: null as null | { id: string; email: string; email_confirmed_at?: string },
-  signUpResult: { data: { user: { id: "new-user", identities: [{ id: "identity" }] }, session: null }, error: null } as {
-    data: { user: null | { id: string; identities?: { id: string }[] }; session: null | { access_token: string } };
-    error: null | { message: string };
+  rateAllowed: true,
+  createUserResult: { data: { user: { id: "new-user" } }, error: null } as {
+    data: { user: null | AuthUser };
+    error: null | AuthError;
   },
   signInResult: { data: { user: null }, error: { message: "Invalid credentials" } } as {
-    data: { user: null | { id: string; email_confirmed_at?: string } };
-    error: null | { message: string };
+    data: { user: null | AuthUser };
+    error: null | AuthError;
   },
 }));
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
+  createUser: vi.fn(),
+  updateUserById: vi.fn(),
   deleteUser: vi.fn(),
   getUserById: vi.fn(),
-  resend: vi.fn(),
   recordSecurityEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/request-security", () => ({
   hasTrustedOrigin: () => true,
+  enforceAuthRateLimit: async () => ({ allowed: state.rateAllowed, retryAfter: 60, fingerprint: "a".repeat(64) }),
 }));
 vi.mock("@/lib/auth/audit", () => ({ recordSecurityEvent: mocks.recordSecurityEvent }));
 vi.mock("@/lib/supabase/env", () => ({
-  getAppUrl: () => "https://canchaflow.example",
   hasSupabaseAdminEnv: () => true,
   hasSupabaseEnv: () => true,
   isDemoMode: () => false,
 }));
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: async () => ({ auth: { signUp: async () => state.signUpResult, signOut: vi.fn(), resend: mocks.resend } }),
   createIsolatedSupabaseClient: () => ({ auth: { signInWithPassword: async () => state.signInResult } }),
   createAdminSupabaseClient: () => ({
-    auth: { admin: { deleteUser: mocks.deleteUser, getUserById: mocks.getUserById } },
+    auth: {
+      admin: {
+        createUser: mocks.createUser,
+        updateUserById: mocks.updateUserById,
+        deleteUser: mocks.deleteUser,
+        getUserById: mocks.getUserById,
+      },
+    },
     rpc: mocks.rpc,
     from(table: string) {
       const chain = {
@@ -91,79 +102,103 @@ describe("POST /api/onboarding", () => {
     state.profile = { role: "customer", active: true };
     state.membership = null;
     state.ownerLookup = null;
-    state.signUpResult = { data: { user: { id: "new-user", identities: [{ id: "identity" }] }, session: null }, error: null };
+    state.rateAllowed = true;
+    state.createUserResult = { data: { user: { id: "new-user" } }, error: null };
     state.signInResult = { data: { user: null }, error: { message: "Invalid credentials" } };
     mocks.rpc.mockReset().mockResolvedValue({ data: "business-id", error: null });
+    mocks.createUser.mockReset().mockImplementation(async () => state.createUserResult);
+    mocks.updateUserById.mockReset().mockResolvedValue({ data: { user: null }, error: null });
     mocks.deleteUser.mockReset();
     mocks.getUserById.mockReset().mockImplementation(async () => ({ data: { user: state.ownerLookup }, error: null }));
-    mocks.resend.mockReset().mockResolvedValue({ error: null });
     mocks.recordSecurityEvent.mockReset();
   });
 
-  it("crea el negocio y solicita confirmación para un propietario nuevo", async () => {
+  it("crea y activa inmediatamente la cuenta de un propietario nuevo", async () => {
     const response = await POST(request());
+
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ publicUrl: "/centro/cancha-norte", requiresEmailVerification: true });
+    expect(await response.json()).toEqual({ publicUrl: "/centro/cancha-norte", requiresEmailVerification: false });
+    expect(mocks.createUser).toHaveBeenCalledWith({
+      email: "ana@example.com",
+      password: "CanchaSegura#2026",
+      email_confirm: true,
+      user_metadata: { full_name: "Ana Pérez" },
+    });
     expect(mocks.rpc).toHaveBeenCalledWith("complete_business_onboarding", expect.objectContaining({ p_user_id: "new-user", p_slug: "cancha-norte" }));
   });
 
-  it("no afirma que envió el correo cuando Supabase rechaza la entrega", async () => {
-    state.signUpResult = { data: { user: null, session: null }, error: { message: "Email address not authorized" } };
-
-    const response = await POST(request());
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
-      error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.",
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it("convierte en propietario una cuenta de cliente confirmada que acredita su contraseña", async () => {
-    state.signUpResult = { data: { user: { id: "masked-user", identities: [] }, session: null }, error: null };
+  it("convierte en propietario una cuenta de cliente que acredita su contraseña", async () => {
+    state.createUserResult = {
+      data: { user: null },
+      error: { message: "A user with this email address has already been registered", code: "email_exists", status: 422 },
+    };
     state.signInResult = { data: { user: { id: "existing-customer", email_confirmed_at: "2026-07-22T00:00:00Z" } }, error: null };
 
     const response = await POST(request());
+
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ publicUrl: "/centro/cancha-norte", requiresEmailVerification: false });
     expect(mocks.rpc).toHaveBeenCalledWith("complete_business_onboarding", expect.objectContaining({ p_user_id: "existing-customer" }));
   });
 
   it("no eleva una cuenta existente cuando la contraseña no se pudo comprobar", async () => {
-    state.signUpResult = { data: { user: { id: "masked-user", identities: [] }, session: null }, error: null };
+    state.createUserResult = {
+      data: { user: null },
+      error: { message: "A user with this email address has already been registered", code: "email_exists", status: 422 },
+    };
 
     const response = await POST(request());
-    expect(response.status).toBe(202);
-    expect(await response.json()).toEqual({ requiresEmailVerification: true });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Este correo ya está registrado. Inicie sesión o utilice otro correo." });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("permite repetir un registro pendiente y reenvía la confirmación", async () => {
+  it("activa sin correo una cuenta pendiente creada por el flujo anterior", async () => {
     state.existingSlug = { id: "business-id" };
     state.membership = { user_id: "owner-user" };
     state.ownerLookup = { id: "owner-user", email: "ana@example.com" };
 
     const response = await POST(request());
 
-    expect(response.status).toBe(202);
-    expect(mocks.resend).toHaveBeenCalledWith({
-      type: "signup",
-      email: "ana@example.com",
-      options: { emailRedirectTo: "https://canchaflow.example/auth/callback" },
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      publicUrl: "/centro/cancha-norte",
+      requiresEmailVerification: false,
+      message: "La cuenta existente quedó activa. Ya puede iniciar sesión con su contraseña original.",
     });
+    expect(mocks.updateUserById).toHaveBeenCalledWith("owner-user", { email_confirm: true });
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
-  it("informa un fallo al reenviar en vez de mostrar un éxito falso", async () => {
+  it("mantiene intacta una cuenta que ya estaba activa", async () => {
     state.existingSlug = { id: "business-id" };
     state.membership = { user_id: "owner-user" };
-    state.ownerLookup = { id: "owner-user", email: "ana@example.com" };
-    mocks.resend.mockResolvedValueOnce({ error: { message: "Email address not authorized" } });
+    state.ownerLookup = { id: "owner-user", email: "ana@example.com", email_confirmed_at: "2026-07-22T00:00:00Z" };
 
     const response = await POST(request());
 
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
-      error: "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.",
-    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Esta cuenta ya está registrada. Inicie sesión para abrir su panel." });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("revierte el usuario si no puede terminar la configuración del negocio", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "Database error" } });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(500);
+    expect(mocks.deleteUser).toHaveBeenCalledWith("new-user");
+  });
+
+  it("limita los intentos automatizados de registro", async () => {
+    state.rateAllowed = false;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });

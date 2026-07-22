@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { recordSecurityEvent } from "@/lib/auth/audit";
-import { hasTrustedOrigin } from "@/lib/auth/request-security";
+import { enforceAuthRateLimit, hasTrustedOrigin } from "@/lib/auth/request-security";
 import { onboardingSchema } from "@/lib/validation";
-import { getAppUrl, hasSupabaseAdminEnv, hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
-import { createAdminSupabaseClient, createIsolatedSupabaseClient, createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasSupabaseAdminEnv, hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
+import { createAdminSupabaseClient, createIsolatedSupabaseClient } from "@/lib/supabase/server";
 import { sanitizeText } from "@/lib/utils";
 
-const EMAIL_DELIVERY_ERROR = "No pudimos enviar el correo de confirmación. Intente de nuevo más tarde o contacte soporte.";
+function isExistingEmailError(error: { code?: string; message?: string; status?: number } | null) {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "email_exists"
+    || error.status === 422
+    || message.includes("already been registered")
+    || message.includes("already exists");
+}
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
@@ -14,9 +21,23 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
   const input = parsed.data;
   const publicUrl = `/centro/${input.slug}`;
-  if (isDemoMode()) return NextResponse.json({ publicUrl, demo: true }, { status: 201 });
+  if (isDemoMode()) return NextResponse.json({ publicUrl, requiresEmailVerification: false, demo: true }, { status: 201 });
   if (!hasSupabaseEnv()) return NextResponse.json({ error: "La autenticación no está configurada" }, { status: 503 });
   if (!hasSupabaseAdminEnv()) return NextResponse.json({ error: "Falta configurar la clave privada del servidor" }, { status: 503 });
+
+  let rateLimit;
+  try {
+    rateLimit = await enforceAuthRateLimit(request, "register", input.email);
+  } catch {
+    return NextResponse.json({ error: "El servicio de registro no está disponible" }, { status: 503 });
+  }
+  if (!rateLimit.allowed) {
+    await recordSecurityEvent({ action: "auth.register", outcome: "blocked", requestFingerprint: rateLimit.fingerprint });
+    return NextResponse.json(
+      { error: "Demasiados intentos de registro. Espere antes de volver a intentarlo." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } },
+    );
+  }
 
   const admin = createAdminSupabaseClient();
   const { data: existing } = await admin.from("businesses").select("id").eq("slug", input.slug).maybeSingle();
@@ -39,22 +60,30 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Esta cuenta ya está registrada. Inicie sesión para abrir su panel." }, { status: 409 });
       }
 
-      const resendClient = await createServerSupabaseClient();
-      const { error: resendError } = await resendClient.auth.resend({
-        type: "signup",
-        email: input.email,
-        options: { emailRedirectTo: `${getAppUrl()}/auth/callback` },
-      });
-      if (resendError) {
-        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingOwner.id, businessId: existing.id });
-        return NextResponse.json({ error: EMAIL_DELIVERY_ERROR }, { status: 503 });
+      const { error: activationError } = await admin.auth.admin.updateUserById(existingOwner.id, { email_confirm: true });
+      if (activationError) {
+        await recordSecurityEvent({
+          action: "auth.register",
+          outcome: "failure",
+          actorId: existingOwner.id,
+          businessId: existing.id,
+          requestFingerprint: rateLimit.fingerprint,
+        });
+        return NextResponse.json({ error: "No pudimos activar la cuenta" }, { status: 500 });
       }
-      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingOwner.id, businessId: existing.id });
+
+      await recordSecurityEvent({
+        action: "auth.register",
+        outcome: "success",
+        actorId: existingOwner.id,
+        businessId: existing.id,
+        requestFingerprint: rateLimit.fingerprint,
+      });
       return NextResponse.json({
         publicUrl,
-        requiresEmailVerification: true,
-        message: "La cuenta ya estaba creada. Enviamos un nuevo correo de confirmación.",
-      }, { status: 202 });
+        requiresEmailVerification: false,
+        message: "La cuenta existente quedó activa. Ya puede iniciar sesión con su contraseña original.",
+      }, { status: 201 });
     }
 
     return NextResponse.json({ error: "Ese enlace público ya está en uso. Pruebe otro nombre para el enlace." }, { status: 409 });
@@ -69,19 +98,18 @@ export async function POST(request: Request) {
     p_hourly_rate: input.hourlyRate, p_plan_code: input.plan, p_billing_interval: input.billingInterval,
   };
 
-  const supabase = await createServerSupabaseClient();
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email: input.email,
     password: input.password,
-    options: { emailRedirectTo: `${getAppUrl()}/auth/callback`, data: { full_name: sanitizeText(input.ownerName) } },
+    email_confirm: true,
+    user_metadata: { full_name: sanitizeText(input.ownerName) },
   });
   if (authError || !authData.user) {
-    await recordSecurityEvent({ action: "auth.register", outcome: "failure" });
-    return NextResponse.json({ error: EMAIL_DELIVERY_ERROR }, { status: 503 });
-  }
+    if (!isExistingEmailError(authError)) {
+      await recordSecurityEvent({ action: "auth.register", outcome: "failure", requestFingerprint: rateLimit.fingerprint });
+      return NextResponse.json({ error: "No pudimos crear la cuenta" }, { status: 503 });
+    }
 
-  const isNewIdentity = (authData.user.identities?.length ?? 0) > 0;
-  if (!isNewIdentity) {
     const verifier = createIsolatedSupabaseClient();
     const { data: existingAuth } = await verifier.auth.signInWithPassword({ email: input.email, password: input.password });
     const existingUser = existingAuth.user;
@@ -96,28 +124,23 @@ export async function POST(request: Request) {
 
       const { error: upgradeError } = await admin.rpc("complete_business_onboarding", { ...onboardingParams, p_user_id: existingUser.id });
       if (upgradeError) {
-        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingUser.id });
+        await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: existingUser.id, requestFingerprint: rateLimit.fingerprint });
         return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
       }
-      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingUser.id });
+      await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingUser.id, requestFingerprint: rateLimit.fingerprint });
       return NextResponse.json({ publicUrl, requiresEmailVerification: false }, { status: 201 });
     }
 
-    await recordSecurityEvent({ action: "auth.register", outcome: "success" });
-    return NextResponse.json({ requiresEmailVerification: true }, { status: 202 });
-  }
-  if (authData.session) {
-    await supabase.auth.signOut({ scope: "local" });
-    await admin.auth.admin.deleteUser(authData.user.id);
-    return NextResponse.json({ error: "Activa la confirmación de correo en Supabase antes de aceptar registros" }, { status: 503 });
+    await recordSecurityEvent({ action: "auth.register", outcome: "failure", requestFingerprint: rateLimit.fingerprint });
+    return NextResponse.json({ error: "Este correo ya está registrado. Inicie sesión o utilice otro correo." }, { status: 409 });
   }
 
   const { error } = await admin.rpc("complete_business_onboarding", { ...onboardingParams, p_user_id: authData.user.id });
   if (error) {
     await admin.auth.admin.deleteUser(authData.user.id);
-    await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: authData.user.id });
+    await recordSecurityEvent({ action: "auth.register", outcome: "failure", actorId: authData.user.id, requestFingerprint: rateLimit.fingerprint });
     return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
   }
-  await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: authData.user.id });
-  return NextResponse.json({ publicUrl, requiresEmailVerification: true }, { status: 201 });
+  await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: authData.user.id, requestFingerprint: rateLimit.fingerprint });
+  return NextResponse.json({ publicUrl, requiresEmailVerification: false }, { status: 201 });
 }

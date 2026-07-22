@@ -2,10 +2,11 @@ import { createHmac } from "node:crypto";
 import { getAppUrl, hasSupabaseAdminEnv } from "@/lib/supabase/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
-export type AuthRateLimitAction = "login" | "recovery";
+export type AuthRateLimitAction = "login" | "register" | "recovery";
 
 const limits: Record<AuthRateLimitAction, { attempts: number; windowSeconds: number }> = {
   login: { attempts: 5, windowSeconds: 15 * 60 },
+  register: { attempts: 5, windowSeconds: 60 * 60 },
   recovery: { attempts: 3, windowSeconds: 60 * 60 },
 };
 

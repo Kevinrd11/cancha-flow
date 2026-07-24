@@ -6,9 +6,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "lg";
 };
 
-export function Button({ className, variant = "primary", size = "md", ...props }: ButtonProps) {
+export function Button({ className, variant = "primary", size = "md", type = "button", ...props }: ButtonProps) {
   return (
     <button
+      type={type}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:pointer-events-none disabled:opacity-50",
         "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-forest",

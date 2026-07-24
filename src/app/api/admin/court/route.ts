@@ -5,7 +5,7 @@ import { demoCourts } from "@/lib/courts-data";
 import { sanitizeText } from "@/lib/utils";
 import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
-const schema = z.object({ fieldId: z.string().uuid(), name: z.string().trim().min(2).max(100), description: z.string().trim().min(10).max(1200), location: z.string().trim().min(3).max(240), hourlyRate: z.number().int().positive().max(1_000_000), imageUrl: z.union([z.literal(""), z.url().max(2000)]), active: z.boolean() }).strict();
+const schema = z.object({ fieldId: z.string().uuid(), name: z.string().trim().min(2, "Escriba el nombre de la cancha").max(100, "El nombre de la cancha es demasiado largo"), description: z.string().trim().min(10, "La descripción debe tener al menos 10 caracteres").max(1200, "La descripción es demasiado larga"), location: z.string().trim().min(3, "Escriba la ubicación de la cancha").max(240, "La ubicación es demasiado larga"), hourlyRate: z.number().int().positive("El precio debe ser mayor que cero").max(1_000_000, "El precio ingresado es demasiado alto"), imageUrl: z.union([z.literal(""), z.url("Ingrese un enlace de imagen válido").max(2000)]), active: z.boolean() }).strict();
 
 export async function PATCH(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });

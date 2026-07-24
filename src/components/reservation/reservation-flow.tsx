@@ -277,7 +277,7 @@ export function ReservationFlow({
             <SummaryRow icon={CalendarDays} label="Fecha" value={formatDate(date)} />
             <SummaryRow icon={Clock3} label="Horario" value={startTime ? `${formatTime(startTime)} – ${formatTime(endTime)}` : "Por seleccionar"} />
           </dl>
-          <div className="mt-6 flex items-end justify-between border-t border-white/15 pt-6"><span className="text-white/60">Precio estimado</span><strong className="text-3xl text-lime">{formatCurrency(total)}</strong></div>
+          <div className="mt-6 flex items-end justify-between border-t border-white/15 pt-6"><span className="text-white/60">Precio estimado</span><strong className="text-3xl text-lime">{formatCurrency(total, settings.currency)}</strong></div>
           <p className="mt-5 flex gap-2 text-xs leading-relaxed text-white/55"><ShieldCheck className="shrink-0 text-lime" size={16} /> La solicitud no obliga a pagar en línea. La cancha debe confirmarla.</p>
         </aside>
       </div>

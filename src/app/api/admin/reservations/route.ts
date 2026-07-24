@@ -5,6 +5,9 @@ import { adminReservationSchema, reservationUpdateSchema } from "@/lib/validatio
 import { createDemoReservation, updateDemoReservation } from "@/lib/demo-data";
 import { hasTrustedOrigin } from "@/lib/auth/request-security";
 
+const CONFLICT_CODES = ["23P01", "P0001"];
+const isConflict = (code?: string) => Boolean(code && CONFLICT_CODES.includes(code));
+
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
   const auth = await requireAdmin();
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
     p_notes: data.notes || null,
   });
   if (error) {
-    const conflict = ["23P01", "P0001"].includes(error.code);
+    const conflict = isConflict(error.code);
     return NextResponse.json({ error: conflict ? "El horario se superpone con una reserva o bloqueo" : "No se pudo guardar" }, { status: conflict ? 409 : 500 });
   }
   return NextResponse.json({ reservationCode: code }, { status: 201 });
@@ -97,12 +100,12 @@ export async function PATCH(request: Request) {
       p_end_time: endTime ?? current.end_time,
       p_notes: notes === undefined ? null : sanitizeText(notes),
     });
-    if (scheduleError) return NextResponse.json({ error: ["23P01", "P0001"].includes(scheduleError.code) ? "El nuevo horario se superpone con una reserva o bloqueo" : "No se pudo reprogramar" }, { status: ["23P01", "P0001"].includes(scheduleError.code) ? 409 : 500 });
+    if (scheduleError) return NextResponse.json({ error: isConflict(scheduleError.code) ? "El nuevo horario se superpone con una reserva o bloqueo" : "No se pudo reprogramar" }, { status: isConflict(scheduleError.code) ? 409 : 500 });
   } else if (notes !== undefined) {
     changes.notes = sanitizeText(notes) || null;
   }
   if (!Object.keys(changes).length) return NextResponse.json({ ok: true });
   const { error } = await auth.supabase.from("reservations").update(changes).eq("id", id).eq("business_id", auth.businessId);
-  if (error) return NextResponse.json({ error: error.code === "23P01" ? "El nuevo horario se superpone con otra reserva" : "No se pudo actualizar" }, { status: error.code === "23P01" ? 409 : 500 });
+  if (error) return NextResponse.json({ error: isConflict(error.code) ? "El nuevo horario se superpone con otra reserva" : "No se pudo actualizar" }, { status: isConflict(error.code) ? 409 : 500 });
   return NextResponse.json({ ok: true });
 }

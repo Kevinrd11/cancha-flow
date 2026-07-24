@@ -76,6 +76,8 @@ supabase/migrations/20260721000150_multitenant_roles.sql
 supabase/migrations/20260721000160_canchaflow_multitenant.sql
 supabase/migrations/20260721000170_local_football_mvp.sql
 supabase/migrations/20260722000180_auth_hardening.sql
+supabase/migrations/20260722000190_multitenant_field_slugs.sql
+supabase/migrations/20260722000200_pending_reservations_block_slots.sql
 ```
 
 `supabase/seed.sql` contiene datos de demostración y debe usarse únicamente en desarrollo local, nunca en producción.

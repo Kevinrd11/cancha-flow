@@ -12,17 +12,12 @@ export const reservationSchema = z
     fieldId: z.string().uuid(),
     date: z.iso.date(),
     startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-    durationMinutes: z.number().int().min(60).max(240),
+    durationMinutes: z.number().int().min(30).max(240),
     fullName: z.string().trim().min(3, "Escribe tu nombre completo").max(100),
     phone,
     email: z.union([z.literal(""), z.email("Ingresa un correo válido")]).optional(),
   })
   .strict();
-
-export const paymentUploadSchema = z.object({
-  reservationCode: z.string().regex(/^(CF|LD)-[A-Z0-9]{6,12}$/),
-  publicToken: z.string().uuid(),
-});
 
 export const adminReservationSchema = reservationSchema.extend({
   source: z.enum(["whatsapp", "phone", "walk_in", "admin"]),
@@ -43,21 +38,21 @@ export const reservationUpdateSchema = z
   .strict();
 
 export const settingsSchema = z.object({
-  businessName: z.string().trim().min(2).max(100),
-  description: z.string().trim().min(10).max(1200),
-  location: z.string().trim().min(3).max(240),
+  businessName: z.string().trim().min(2, "Escriba el nombre del centro").max(100, "El nombre es demasiado largo"),
+  description: z.string().trim().min(10, "La descripción debe tener al menos 10 caracteres").max(1200, "La descripción es demasiado larga"),
+  location: z.string().trim().min(3, "Escriba la ubicación del centro").max(240, "La ubicación es demasiado larga"),
   email: emailAddressSchema,
-  currency: z.string().length(3),
-  timezone: z.string().trim().min(3).max(80),
-  fieldName: z.string().trim().min(2).max(100),
+  currency: z.string().length(3, "Use un código de moneda de 3 letras"),
+  timezone: z.string().trim().min(3, "Seleccione una zona horaria válida").max(80, "La zona horaria es demasiado larga"),
+  fieldName: z.string().trim().min(2, "Escriba el nombre de la cancha").max(100, "El nombre de la cancha es demasiado largo"),
   whatsappPhone: phone,
   sinpePhone: phone,
-  hourlyRate: z.number().int().positive().max(1_000_000),
-  openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  minimumMinutes: z.number().int().min(30).max(240),
-  holdMinutes: z.number().int().min(5).max(180),
-  cancellationPolicy: z.string().trim().min(10).max(2000),
+  hourlyRate: z.number().int().positive("El precio debe ser mayor que cero").max(1_000_000, "El precio ingresado es demasiado alto"),
+  openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Seleccione una hora de apertura válida"),
+  closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Seleccione una hora de cierre válida"),
+  minimumMinutes: z.number().int().min(30, "La duración mínima es de 30 minutos").max(240, "La duración máxima es de 240 minutos"),
+  holdMinutes: z.number().int().min(5, "El tiempo de reserva debe ser al menos 5 minutos").max(180, "El tiempo de reserva no puede superar 180 minutos"),
+  cancellationPolicy: z.string().trim().min(10, "Escriba una política de cancelación de al menos 10 caracteres").max(2000, "La política de cancelación es demasiado larga"),
   nonWorkingDays: z.array(z.iso.date()).max(100).default([]),
 }).strict();
 
@@ -84,6 +79,3 @@ export const onboardingSchema = z.object({
   message: "La hora de cierre debe ser posterior a la apertura",
   path: ["closingTime"],
 });
-
-export const MAX_PAYMENT_FILE_SIZE = 5 * 1024 * 1024;
-export const PAYMENT_FILE_TYPES = ["image/jpeg", "image/png", "image/webp"];

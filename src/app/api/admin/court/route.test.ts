@@ -5,7 +5,7 @@ vi.mock("@/lib/auth/request-security", () => ({ hasTrustedOrigin: () => true }))
 vi.mock("@/lib/auth/session", () => ({ requireBusinessPermission: async () => state.auth }));
 
 import { PATCH } from "@/app/api/admin/court/route";
-const body = { fieldId: "10000000-0000-4000-8000-000000000001", name: "Cancha principal", description: "Cancha sintética en excelente estado", location: "Ciudad Quesada", hourlyRate: 18000, imageUrl: "https://images.example/cancha.jpg", active: true };
+const body = { fieldId: "10000000-0000-4000-8000-000000000001", name: "Cancha principal", description: "Cancha sintética en excelente estado", location: "Ciudad Quesada", hourlyRate: 18000, imageUrl: "https://images.pexels.com/photos/399187/pexels-photo-399187.jpeg", active: true };
 function request(value = body) { return new Request("http://localhost/api/admin/court", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(value) }); }
 
 describe("PATCH /api/admin/court", () => {
@@ -25,6 +25,12 @@ describe("PATCH /api/admin/court", () => {
   });
   it("rechaza intentos de modificar role desde el cliente", async () => {
     expect((await PATCH(request({ ...body, role: "platform_admin" } as typeof body))).status).toBe(400);
+  });
+  it("rechaza una fotografía de un origen que next/image no puede renderizar", async () => {
+    state.court = { id: body.fieldId };
+    const response = await PATCH(request({ ...body, imageUrl: "https://www.google.com/url?sa=t&url=https%3A%2F%2Fejemplo.com" }));
+    expect(response.status).toBe(400);
+    expect(state.updated).toBeNull();
   });
   it("permite guardar una cancha nueva sin fotografía", async () => {
     state.court = { id: body.fieldId };

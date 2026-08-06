@@ -1,7 +1,7 @@
 import "server-only";
-import { demoReservations } from "@/lib/demo-data";
+import { demoBlockedSlots, demoReservations } from "@/lib/demo-data";
 import { hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
-import type { Reservation } from "@/lib/types";
+import type { BlockedSlot, Reservation } from "@/lib/types";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function getAdminReservations(): Promise<Reservation[]> {
@@ -40,6 +40,38 @@ export async function getAdminReservations(): Promise<Reservation[]> {
         notes: item.notes ?? undefined,
         businessId: item.business_id,
         courtId: item.field_id,
+        courtName: court?.name ?? "Cancha",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function getAdminBlockedSlots(): Promise<BlockedSlot[]> {
+  if (isDemoMode()) return [...demoBlockedSlots];
+  if (!hasSupabaseEnv()) return [];
+  try {
+    const auth = await requireAdmin();
+    if (!auth) return [];
+    if (auth.demo) return [...demoBlockedSlots];
+    const { data, error } = await auth.supabase
+      .from("blocked_slots")
+      .select("id, field_id, blocked_date, start_time, end_time, reason, fields(name)")
+      .eq("business_id", auth.businessId)
+      .order("blocked_date")
+      .order("start_time");
+    if (error) throw error;
+    return (data ?? []).map((item) => {
+      const rawCourt = item.fields as unknown;
+      const court = (Array.isArray(rawCourt) ? rawCourt[0] : rawCourt) as { name?: string } | null;
+      return {
+        id: item.id,
+        fieldId: item.field_id,
+        date: item.blocked_date,
+        startTime: item.start_time.slice(0, 5),
+        endTime: item.end_time.slice(0, 5),
+        reason: item.reason,
         courtName: court?.name ?? "Cancha",
       };
     });

@@ -1,5 +1,7 @@
 import "server-only";
 import { DEFAULT_SETTINGS } from "@/lib/constants";
+import { isAllowedImageUrl } from "@/lib/images";
+import { getPublicFieldSettings } from "@/lib/public-field-settings";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Business, BusinessSettings, Court } from "@/lib/types";
@@ -43,7 +45,7 @@ export const demoCourts: Court[] = [
     sport: "Pádel",
     description: "Cancha panorámica con iluminación y alquiler opcional de palas.",
     hourlyRate: 22000,
-    reservationMinutes: 90,
+    reservationMinutes: 60,
     capacity: 4,
     active: true,
     rules: ["No ingresar alimentos", "Usar calzado deportivo"],
@@ -91,12 +93,7 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
       .eq("active", true)
       .order("name");
     const courtIds = (courts ?? []).map((court) => court.id);
-    const { data: rawSettings } = courtIds.length ? await supabase
-      .from("business_settings")
-      .select("field_id, whatsapp_phone, sinpe_phone, opening_time, closing_time, minimum_reservation_minutes, hold_minutes, cancellation_policy, non_working_days")
-      .eq("business_id", business.id)
-      .in("field_id", courtIds) : { data: [] };
-    const settingsByField = new Map((rawSettings ?? []).map((settings) => [settings.field_id, settings]));
+    const settingsByField = await getPublicFieldSettings(supabase, courtIds);
     const mappedCourts: Court[] = (courts ?? []).map((court) => ({
       id: court.id,
       businessId: court.business_id,
@@ -110,7 +107,7 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
       active: court.active,
       rules: Array.isArray(court.rules) ? court.rules : [],
       amenities: Array.isArray(court.amenities) ? court.amenities : [],
-      imageUrl: court.image_url ?? undefined,
+      imageUrl: isAllowedImageUrl(court.image_url) ? court.image_url : undefined,
     }));
     return {
       business: {
@@ -142,18 +139,21 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
           description: court.description,
           location: business.location,
           email: business.email ?? "",
-          whatsappPhone: business.whatsapp_phone || settings?.whatsapp_phone || "",
-          sinpePhone: settings?.sinpe_phone ?? "",
+          whatsappPhone: business.whatsapp_phone || settings?.whatsappPhone || "",
+          // sinpePhone, holdMinutes, cancellationPolicy y nonWorkingDays no se
+          // publican: la ficha pública no los usa y quedan fuera de la función
+          // security definer que expone los horarios a visitantes anónimos.
+          sinpePhone: "",
           currency: business.currency,
           timezone: business.timezone,
           primaryColor: business.primary_color,
           hourlyRate: court.hourlyRate,
-          openingTime: settings?.opening_time?.slice(0, 5) ?? "08:00",
-          closingTime: settings?.closing_time?.slice(0, 5) ?? "22:00",
-          minimumMinutes: settings?.minimum_reservation_minutes ?? court.reservationMinutes,
-          holdMinutes: settings?.hold_minutes ?? 20,
-          cancellationPolicy: settings?.cancellation_policy ?? "Las cancelaciones se coordinan directamente con el centro deportivo.",
-          nonWorkingDays: Array.isArray(settings?.non_working_days) ? settings.non_working_days : [],
+          openingTime: settings?.openingTime ?? "08:00",
+          closingTime: settings?.closingTime ?? "22:00",
+          minimumMinutes: settings?.minimumMinutes ?? court.reservationMinutes,
+          holdMinutes: 20,
+          cancellationPolicy: "Las cancelaciones se coordinan directamente con el centro deportivo.",
+          nonWorkingDays: [],
         } satisfies BusinessSettings];
       })),
     };

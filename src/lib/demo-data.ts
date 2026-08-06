@@ -1,5 +1,5 @@
 import { addDays, format } from "date-fns";
-import { ACTIVE_RESERVATION_STATUSES } from "@/lib/constants";
+import { ACTIVE_RESERVATION_STATUSES, SLOT_INTERVAL_MINUTES } from "@/lib/constants";
 import { getCourtById } from "@/lib/courts-data";
 import type { Reservation, ReservationStatus, TimeSlot } from "@/lib/types";
 import { formatTime, minutesToTime, timeToMinutes, todayInCostaRica } from "@/lib/utils";
@@ -82,16 +82,21 @@ export const demoBlockedSlots: DemoBlock[] = [
 export function getDemoAvailability(date: string, fieldId: string): TimeSlot[] {
   const court = getCourtById(fieldId);
   if (!court) return [];
-  const opening = timeToMinutes(court.openingTime);
+  // Solo se ofrecen horas en punto: si la apertura cayera a media hora, el
+  // primer horario disponible es la hora siguiente.
+  const opening =
+    Math.ceil(timeToMinutes(court.openingTime) / SLOT_INTERVAL_MINUTES) * SLOT_INTERVAL_MINUTES;
   const closing = timeToMinutes(court.closingTime);
   const reservations = demoReservations.filter(
     (reservation) => reservation.courtId === fieldId && reservation.date === date,
   );
   const blocks = demoBlockedSlots.filter((block) => block.fieldId === fieldId && block.date === date);
 
-  return Array.from({ length: (closing - opening) / 30 }, (_, index) => {
-    const time = minutesToTime(opening + index * 30);
-    const endTime = minutesToTime(opening + (index + 1) * 30);
+  const slotCount = Math.max(0, Math.floor((closing - opening) / SLOT_INTERVAL_MINUTES));
+
+  return Array.from({ length: slotCount }, (_, index) => {
+    const time = minutesToTime(opening + index * SLOT_INTERVAL_MINUTES);
+    const endTime = minutesToTime(opening + (index + 1) * SLOT_INTERVAL_MINUTES);
     const reservation = reservations.find(
       (item) =>
         ACTIVE_RESERVATION_STATUSES.includes(
@@ -199,4 +204,11 @@ export function createDemoBlockedSlot(input: Omit<DemoBlock, "id">) {
   const created = { ...input, id: crypto.randomUUID() };
   demoBlockedSlots.push(created);
   return created;
+}
+
+export function deleteDemoBlockedSlot(id: string) {
+  const index = demoBlockedSlots.findIndex((item) => item.id === id);
+  if (index === -1) return false;
+  demoBlockedSlots.splice(index, 1);
+  return true;
 }

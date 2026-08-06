@@ -12,7 +12,7 @@ describe("recorridos críticos en modo demostración", () => {
 
   it("rechaza una segunda reserva sobre el mismo horario", () => {
     createDemoReservation({ fieldId, date: "2099-01-11", startTime: "18:00", endTime: "19:00", fullName: "Primera reserva", phone: "8888-2222" });
-    expect(() => createDemoReservation({ fieldId, date: "2099-01-11", startTime: "18:30", endTime: "19:30", fullName: "Segunda reserva", phone: "8888-3333" })).toThrow("disponible");
+    expect(() => createDemoReservation({ fieldId, date: "2099-01-11", startTime: "17:00", endTime: "19:00", fullName: "Segunda reserva", phone: "8888-3333" })).toThrow("disponible");
   });
 
   it("un bloqueo administrativo desaparece de la disponibilidad pública", () => {

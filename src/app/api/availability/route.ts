@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 
 const querySchema = z.object({ date: z.iso.date(), fieldId: z.string().uuid() });
 
+// La cancha se aparta de hora en hora. Si una configuración vieja todavía
+// generara medias horas, no deben llegar a ofrecerse al cliente.
+function onlyHourlySlots(slots: TimeSlot[]) {
+  return slots.filter((slot) => slot.time.endsWith(":00"));
+}
+
 function removePastSlots(date: string, slots: TimeSlot[]) {
   if (date !== todayInCostaRica()) return slots;
   const currentMinutes = Number(currentTimeInCostaRica().replace(":", ""));
@@ -24,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   if (!hasSupabaseEnv()) {
-    return NextResponse.json({ slots: removePastSlots(parsed.data.date, getDemoAvailability(parsed.data.date, parsed.data.fieldId)), demo: true });
+    return NextResponse.json({ slots: onlyHourlySlots(removePastSlots(parsed.data.date, getDemoAvailability(parsed.data.date, parsed.data.fieldId))), demo: true });
   }
 
   try {
@@ -41,7 +47,7 @@ export async function GET(request: Request) {
       ),
       state: item.slot_state,
     }));
-    return NextResponse.json({ slots: removePastSlots(parsed.data.date, slots) });
+    return NextResponse.json({ slots: onlyHourlySlots(removePastSlots(parsed.data.date, slots)) });
   } catch {
     return NextResponse.json({ error: "No pudimos consultar los horarios" }, { status: 503 });
   }

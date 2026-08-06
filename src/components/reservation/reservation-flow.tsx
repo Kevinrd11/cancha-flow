@@ -16,7 +16,8 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getDisplayTimeSlots } from "@/lib/availability";
+import { getDisplayTimeSlots, type DisplayTimeSlot } from "@/lib/availability";
+import { RESERVATION_DURATION_OPTIONS } from "@/lib/constants";
 import type { BusinessSettings, TimeSlot } from "@/lib/types";
 import {
   addMinutesToTime,
@@ -46,7 +47,7 @@ export function ReservationFlow({
 }) {
   const [step, setStep] = useState<Step>("schedule");
   const [date, setDate] = useState(initialDate || todayInCostaRica());
-  const [duration, setDuration] = useState(settings.minimumMinutes || 60);
+  const [duration, setDuration] = useState(() => defaultDuration(settings.minimumMinutes));
   const [startTime, setStartTime] = useState(initialTime || "");
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
@@ -63,10 +64,8 @@ export function ReservationFlow({
       ),
     [],
   );
-  const durations = useMemo(
-    () => Array.from(new Set([settings.minimumMinutes, 60, 90, 120])).filter((item) => item >= settings.minimumMinutes).sort((a, b) => a - b).slice(0, 3),
-    [settings.minimumMinutes],
-  );
+  // La cancha se aparta por horas completas: una o dos, nunca media hora.
+  const durations = useMemo(() => availableDurations(settings.minimumMinutes), [settings.minimumMinutes]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -179,10 +178,11 @@ export function ReservationFlow({
 
               <div className="mt-6">
                 <p className="text-sm font-bold" id="duration-label">Duración</p>
-                <div className="mt-2 grid grid-cols-3 gap-2" aria-labelledby="duration-label">
+                <p className="text-xs text-muted">Las reservas son de hora en hora: de 1 a 2, de 2 a 3, y así.</p>
+                <div className="mt-2 grid grid-cols-2 gap-2" aria-labelledby="duration-label">
                   {durations.map((minutes) => (
                     <button key={minutes} onClick={() => { setDuration(minutes); setStartTime(""); }} className={cn("min-h-12 rounded-xl border font-semibold", duration === minutes ? "border-lime-dark bg-lime" : "border-line hover:bg-paper")} aria-pressed={duration === minutes}>
-                      {minutes === 90 ? "1.5 horas" : `${minutes / 60} ${minutes === 60 ? "hora" : "horas"}`}
+                      {durationLabel(minutes)}
                     </button>
                   ))}
                 </div>
@@ -194,6 +194,7 @@ export function ReservationFlow({
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-muted" aria-label="Significado de los colores">
                 <SlotLegend color="bg-emerald-500" label="Disponible" />
+                <SlotLegend color="bg-emerald-200" label={`Libre, pero no cabe ${durationLabel(duration)}`} />
                 <SlotLegend color="bg-amber-400" label="Pendiente de confirmar" />
                 <SlotLegend color="bg-rose-500" label="Reservado" />
                 <SlotLegend color="bg-slate-400" label="No disponible" />
@@ -209,17 +210,18 @@ export function ReservationFlow({
                         onClick={() => setStartTime(slot.time)}
                         className={cn(
                           "min-h-16 rounded-xl border px-3 py-2 text-left font-bold transition",
-                          slot.displayState === "available" && "border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-600 hover:bg-emerald-100",
+                          slot.selectable && "border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-600 hover:bg-emerald-100",
+                          slot.displayState === "available" && !slot.selectable && "cursor-not-allowed border-dashed border-emerald-200 bg-white text-emerald-700/60",
                           slot.displayState === "pending" && "cursor-not-allowed border-amber-300 bg-amber-100 text-amber-900",
                           slot.displayState === "reserved" && "cursor-not-allowed border-rose-300 bg-rose-100 text-rose-900",
                           slot.displayState === "blocked" && "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500",
                           startTime === slot.time && "!border-forest !bg-forest !text-white ring-2 ring-forest/20",
                         )}
-                        aria-label={`${slot.label}, ${SLOT_STATE_LABELS[slot.displayState]}`}
+                        aria-label={`${slot.label}, ${slotStateLabel(slot, duration)}`}
                         aria-pressed={startTime === slot.time}
                       >
                         <span className="block">{slot.label}</span>
-                        <span className="mt-0.5 block text-[11px] font-semibold opacity-75">{SLOT_STATE_LABELS[slot.displayState]}</span>
+                        <span className="mt-0.5 block text-[11px] font-semibold opacity-75">{slotStateLabel(slot, duration)}</span>
                       </button>
                     ))}
               </div>
@@ -304,6 +306,28 @@ const SLOT_STATE_LABELS = {
   reserved: "Reservado",
   blocked: "No disponible",
 } as const;
+
+function durationLabel(minutes: number) {
+  return `${minutes / 60} ${minutes === 60 ? "hora" : "horas"}`;
+}
+
+// Solo se ofrecen horas completas; una duración mínima heredada que no sea de
+// hora en punto se resuelve hacia la opción de hora más cercana hacia arriba.
+function availableDurations(minimumMinutes: number) {
+  const options = RESERVATION_DURATION_OPTIONS.filter((item) => item >= minimumMinutes);
+  return options.length ? options : [...RESERVATION_DURATION_OPTIONS];
+}
+
+function defaultDuration(minimumMinutes: number) {
+  return availableDurations(minimumMinutes)[0];
+}
+
+// Un horario libre en el que no cabe la duración elegida no está ocupado: se
+// nombra por lo que realmente pasa para no confundirlo con una reserva ajena.
+function slotStateLabel(slot: DisplayTimeSlot, duration: number) {
+  if (slot.tooShortForDuration) return `No cabe ${durationLabel(duration)}`;
+  return SLOT_STATE_LABELS[slot.displayState];
+}
 
 function SlotLegend({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex items-center gap-1.5"><span className={cn("size-2.5 rounded-full", color)} />{label}</span>;

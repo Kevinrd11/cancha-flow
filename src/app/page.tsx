@@ -14,11 +14,17 @@ import {
 } from "lucide-react";
 import { MarketingFooter } from "@/components/marketing/marketing-footer";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
-import { popularSectors } from "@/lib/courts-data";
+import { getPublicCourtListings } from "@/lib/public-courts-data";
 import { todayInCostaRica } from "@/lib/utils";
 
-export default function Home() {
+export default async function Home() {
   const today = todayInCostaRica();
+  // Los sectores salen de las canchas realmente publicadas: una lista fija
+  // enviaría al buscador a filtros que no devuelven ningún resultado.
+  const courts = await getPublicCourtListings();
+  const popularSectors = Array.from(new Set(courts.map((court) => court.sector).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "es"))
+    .slice(0, 4);
   return (
     <main className="bg-white">
       <MarketingHeader />
@@ -43,10 +49,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 sm:py-24 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
+      {popularSectors.length > 0 && <section className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-6 sm:py-24 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
         <div><p className="section-kicker">Explore cerca</p><h2 className="section-title mt-4">La mejenga, más cerca de casa.</h2><p className="mt-5 text-lg leading-8 text-slate-600">Empezamos en Ciudad Quesada y sus comunidades cercanas. Más sectores de San Carlos se agregarán conforme nuevas canchas se incorporen.</p></div>
         <div className="grid grid-cols-2 gap-3">{popularSectors.map((sector, index) => <Link key={sector} href={`/canchas?sector=${encodeURIComponent(sector)}`} className={`relative overflow-hidden rounded-2xl border border-line p-5 ${index === 0 ? "col-span-2 bg-green text-white" : "bg-white text-navy"}`}><MapPin size={20} className={index === 0 ? "text-lime" : "text-green"} /><h3 className="mt-8 text-xl font-bold">{sector}</h3><p className={`mt-1 text-sm ${index === 0 ? "text-white/60" : "text-slate-500"}`}>Ver canchas disponibles</p></Link>)}</div>
-      </section>
+      </section>}
 
       <section id="como-funciona" className="bg-navy py-20 text-white sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6"><SectionHeading dark eyebrow="Así de sencillo" title="De la búsqueda a la cancha en tres pasos" text="Sin cuenta, sin formularios eternos y sin perderse entre conversaciones." />

@@ -79,6 +79,16 @@ export type Reservation = {
   courtName?: string;
 };
 
+export type BlockedSlot = {
+  id: string;
+  fieldId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
+  courtName?: string;
+};
+
 export type BusinessSettings = {
   businessId: string;
   businessName: string;

@@ -31,8 +31,9 @@ export type CourtListing = {
   publicPath?: string;
 };
 
-// Catálogo de demostración del MVP. Esta es la única fuente para textos,
-// precios, servicios, fotografías y datos de las canchas públicas.
+// Catálogo de demostración para desarrollo local sin credenciales de Supabase.
+// Sus ids no existen en la base de datos, así que nunca debe publicarse junto a
+// las canchas reales: la consulta de disponibilidad devolvería cero horarios.
 export const demoCourts: CourtListing[] = [
   {
     id: "00000000-0000-4000-8000-000000000001",
@@ -78,7 +79,7 @@ export const demoCourts: CourtListing[] = [
     hourlyRate: 24000,
     reservationMinutes: 60,
     openingTime: "09:00",
-    closingTime: "22:30",
+    closingTime: "22:00",
     services: ["Parqueo", "Iluminación", "Soda", "Gradería", "Petos"],
     rules: ["No fumar dentro de la cancha", "Respetar el horario reservado", "Los menores deben ingresar acompañados"],
     images: [
@@ -91,7 +92,7 @@ export const demoCourts: CourtListing[] = [
     mapUrl: "https://www.google.com/maps/search/?api=1&query=San+Roque+San+Carlos+Costa+Rica",
     featured: true,
     active: true,
-    nextAvailable: "Hoy · 7:30 p. m.",
+    nextAvailable: "Hoy · 7:00 p. m.",
     paymentInstructions: "La solicitud queda pendiente hasta que el propietario la confirme por teléfono o WhatsApp.",
   },
   {
@@ -135,7 +136,7 @@ export const demoCourts: CourtListing[] = [
     modality: "Fútbol 9",
     recommendedPlayers: 20,
     hourlyRate: 28000,
-    reservationMinutes: 90,
+    reservationMinutes: 60,
     openingTime: "08:00",
     closingTime: "20:00",
     services: ["Parqueo", "Duchas", "Gradería", "Balones"],
@@ -153,8 +154,6 @@ export const demoCourts: CourtListing[] = [
     paymentInstructions: "La reserva se confirma por WhatsApp. En temporada lluviosa se revisa el estado del terreno el mismo día.",
   },
 ];
-
-export const popularSectors = ["Centro de Ciudad Quesada", "San Roque", "Florencia", "La Palmera"];
 
 export function getCourtBySlug(slug: string) {
   return demoCourts.find((court) => court.slug === slug && court.active) ?? null;

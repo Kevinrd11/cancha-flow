@@ -25,6 +25,15 @@ export const DEFAULT_SETTINGS: BusinessSettings = {
   nonWorkingDays: [],
 };
 
+/**
+ * La cancha se aparta de hora en hora (de 1 a 2, de 2 a 3, …): los horarios
+ * siempre empiezan en punto y no existe la media hora.
+ */
+export const SLOT_INTERVAL_MINUTES = 60;
+
+/** Duraciones que puede elegir el cliente: una o dos horas. */
+export const RESERVATION_DURATION_OPTIONS = [60, 120] as const;
+
 export const ACTIVE_RESERVATION_STATUSES = [
   "pending",
   "awaiting_payment",

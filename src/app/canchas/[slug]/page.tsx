@@ -1,25 +1,31 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Check, Clock3, ExternalLink, MapPin, MessageCircle, Phone, ShieldCheck, UsersRound } from "lucide-react";
 import { MarketingFooter } from "@/components/marketing/marketing-footer";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { ReservationFlow } from "@/components/reservation/reservation-flow";
-import { courtToSettings, demoCourts, getCourtBySlug } from "@/lib/courts-data";
+import { courtToSettings, getCourtBySlug } from "@/lib/courts-data";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { formatCurrency } from "@/lib/utils";
 
-export function generateStaticParams() {
-  return demoCourts.map((court) => ({ slug: court.slug }));
-}
+// Esta ficha solo resuelve el catálogo de demostración local. Con Supabase
+// configurado, cada cancha real se publica en /centro/[slug]?court=<id>.
+// Sin prerenderizado: en un render estático el redirect se emitiría como meta
+// tag en el cliente en vez de un 307 real.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/canchas/[slug]">): Promise<Metadata> {
-  const court = getCourtBySlug((await params).slug);
+  const court = hasSupabaseEnv() ? null : getCourtBySlug((await params).slug);
   if (!court) return { title: "Cancha no encontrada" };
   return { title: court.name, description: `${court.description} Consulte precios y horarios disponibles en ${court.sector}.` };
 }
 
 export default async function CourtDetailPage({ params, searchParams }: PageProps<"/canchas/[slug]">) {
+  // Con Supabase configurado esta ficha no representa ninguna cancha real: se
+  // devuelve al buscador en vez de servir un 404 blando con contenido ficticio.
+  if (hasSupabaseEnv()) redirect("/canchas");
   const { slug } = await params;
   const court = getCourtBySlug(slug);
   if (!court) notFound();

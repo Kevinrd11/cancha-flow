@@ -27,6 +27,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // El servidor de desarrollo se inicia en localhost, pero NEXT_PUBLIC_APP_URL
+  // apunta a 127.0.0.1 y desde un teléfono se entra por la IP de la red. Next 16
+  // bloquea los recursos de desarrollo que vengan de otro origen, y sin ellos la
+  // página se pinta pero nunca hidrata: nada responde al clic. Solo aplica a
+  // `next dev`; en producción no tiene efecto.
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.*.*"],
   async redirects() {
     // Se resuelve antes del render: un redirect() dentro de la página se
     // emitiría como meta tag en el cliente y la URL respondería 200.
@@ -36,7 +42,7 @@ const nextConfig: NextConfig = {
     remotePatterns: ALLOWED_IMAGE_PATTERNS.map((pattern) => ({
       protocol: "https" as const,
       hostname: pattern.hostname,
-      ...("pathnamePrefix" in pattern ? { pathname: `${pattern.pathnamePrefix}**` } : {}),
+      ...(pattern.pathnamePrefix ? { pathname: `${pattern.pathnamePrefix}**` } : {}),
     })),
   },
   async headers() {

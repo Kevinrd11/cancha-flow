@@ -4,7 +4,8 @@ type AuthUser = { id: string; email?: string; email_confirmed_at?: string };
 type AuthError = { message: string; code?: string; status?: number };
 
 const state = vi.hoisted(() => ({
-  existingSlug: null as null | { id: string },
+  existingSlug: null as null | { id: string; approval_status: "pending" | "approved" | "rejected" },
+  existingLookupError: null as null | { message: string },
   profile: { role: "customer", active: true } as null | { role: string; active: boolean },
   membership: null as null | { id?: string; user_id?: string },
   ownerLookup: null as null | { id: string; email: string; email_confirmed_at?: string },
@@ -57,7 +58,7 @@ vi.mock("@/lib/supabase/server", () => ({
         limit: () => chain,
         maybeSingle: async () => ({
           data: table === "businesses" ? state.existingSlug : table === "profiles" ? state.profile : state.membership,
-          error: null,
+          error: table === "businesses" ? state.existingLookupError : null,
         }),
       };
       return chain;
@@ -99,6 +100,7 @@ function request() {
 describe("POST /api/onboarding", () => {
   beforeEach(() => {
     state.existingSlug = null;
+    state.existingLookupError = null;
     state.profile = { role: "customer", active: true };
     state.membership = null;
     state.ownerLookup = null;
@@ -113,11 +115,11 @@ describe("POST /api/onboarding", () => {
     mocks.recordSecurityEvent.mockReset();
   });
 
-  it("crea y activa inmediatamente la cuenta de un propietario nuevo", async () => {
+  it("crea una solicitud pendiente para un propietario nuevo", async () => {
     const response = await POST(request());
 
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ publicUrl: "/centro/cancha-norte", requiresEmailVerification: false });
+    expect(await response.json()).toEqual({ approvalStatus: "pending", requiresEmailVerification: false });
     expect(mocks.createUser).toHaveBeenCalledWith({
       email: "ana@example.com",
       password: "CanchaSegura#2026",
@@ -137,7 +139,7 @@ describe("POST /api/onboarding", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ publicUrl: "/centro/cancha-norte", requiresEmailVerification: false });
+    expect(await response.json()).toEqual({ approvalStatus: "pending", requiresEmailVerification: false });
     expect(mocks.rpc).toHaveBeenCalledWith("complete_business_onboarding", expect.objectContaining({ p_user_id: "existing-customer" }));
   });
 
@@ -154,25 +156,21 @@ describe("POST /api/onboarding", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("activa sin correo una cuenta pendiente creada por el flujo anterior", async () => {
-    state.existingSlug = { id: "business-id" };
+  it("no duplica una solicitud que ya está pendiente", async () => {
+    state.existingSlug = { id: "business-id", approval_status: "pending" };
     state.membership = { user_id: "owner-user" };
     state.ownerLookup = { id: "owner-user", email: "ana@example.com" };
 
     const response = await POST(request());
 
-    expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({
-      publicUrl: "/centro/cancha-norte",
-      requiresEmailVerification: false,
-      message: "La cuenta existente quedó activa. Ya puede iniciar sesión con su contraseña original.",
-    });
-    expect(mocks.updateUserById).toHaveBeenCalledWith("owner-user", { email_confirm: true });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Esta solicitud ya está pendiente de aprobación." });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
 
   it("mantiene intacta una cuenta que ya estaba activa", async () => {
-    state.existingSlug = { id: "business-id" };
+    state.existingSlug = { id: "business-id", approval_status: "approved" };
     state.membership = { user_id: "owner-user" };
     state.ownerLookup = { id: "owner-user", email: "ana@example.com", email_confirmed_at: "2026-07-22T00:00:00Z" };
 
@@ -199,6 +197,16 @@ describe("POST /api/onboarding", () => {
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.createUser).not.toHaveBeenCalled();
+  });
+
+  it("no crea cuentas si el esquema de aprobaciones no está disponible", async () => {
+    state.existingLookupError = { message: "approval_status does not exist" };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toMatch(/aprobación/i);
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });

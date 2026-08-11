@@ -20,8 +20,7 @@ export async function POST(request: Request) {
   const parsed = onboardingSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
   const input = parsed.data;
-  const publicUrl = `/centro/${input.slug}`;
-  if (isDemoMode()) return NextResponse.json({ publicUrl, requiresEmailVerification: false, demo: true }, { status: 201 });
+  if (isDemoMode()) return NextResponse.json({ approvalStatus: "pending", demo: true }, { status: 201 });
   if (!hasSupabaseEnv()) return NextResponse.json({ error: "La autenticación no está configurada" }, { status: 503 });
   if (!hasSupabaseAdminEnv()) return NextResponse.json({ error: "Falta configurar la clave privada del servidor" }, { status: 503 });
 
@@ -40,14 +39,21 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminSupabaseClient();
-  const { data: existing } = await admin.from("businesses").select("id").eq("slug", input.slug).maybeSingle();
+  const { data: existing, error: existingLookupError } = await admin
+    .from("businesses")
+    .select("id, approval_status")
+    .eq("slug", input.slug)
+    .maybeSingle();
+  if (existingLookupError) {
+    await recordSecurityEvent({ action: "auth.register", outcome: "failure", requestFingerprint: rateLimit.fingerprint });
+    return NextResponse.json({ error: "El servicio de aprobación de cuentas no está disponible" }, { status: 503 });
+  }
   if (existing) {
     const { data: ownerMembership } = await admin
       .from("business_members")
       .select("user_id")
       .eq("business_id", existing.id)
       .eq("role", "owner")
-      .eq("active", true)
       .limit(1)
       .maybeSingle();
     const { data: ownerAuth } = ownerMembership?.user_id
@@ -56,6 +62,12 @@ export async function POST(request: Request) {
     const existingOwner = ownerAuth.user;
 
     if (existingOwner?.email?.toLowerCase() === input.email) {
+      if (existing.approval_status === "pending") {
+        return NextResponse.json({ error: "Esta solicitud ya está pendiente de aprobación." }, { status: 409 });
+      }
+      if (existing.approval_status === "rejected") {
+        return NextResponse.json({ error: "Esta solicitud fue rechazada. Contacte al administrador de CanchaFlow." }, { status: 409 });
+      }
       if (existingOwner.email_confirmed_at) {
         return NextResponse.json({ error: "Esta cuenta ya está registrada. Inicie sesión para abrir su panel." }, { status: 409 });
       }
@@ -80,7 +92,7 @@ export async function POST(request: Request) {
         requestFingerprint: rateLimit.fingerprint,
       });
       return NextResponse.json({
-        publicUrl,
+        approvalStatus: "approved",
         requiresEmailVerification: false,
         message: "La cuenta existente quedó activa. Ya puede iniciar sesión con su contraseña original.",
       }, { status: 201 });
@@ -128,7 +140,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
       }
       await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: existingUser.id, requestFingerprint: rateLimit.fingerprint });
-      return NextResponse.json({ publicUrl, requiresEmailVerification: false }, { status: 201 });
+      return NextResponse.json({ approvalStatus: "pending", requiresEmailVerification: false }, { status: 201 });
     }
 
     await recordSecurityEvent({ action: "auth.register", outcome: "failure", requestFingerprint: rateLimit.fingerprint });
@@ -142,5 +154,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No pudimos terminar la configuración" }, { status: 500 });
   }
   await recordSecurityEvent({ action: "auth.register", outcome: "success", actorId: authData.user.id, requestFingerprint: rateLimit.fingerprint });
-  return NextResponse.json({ publicUrl, requiresEmailVerification: false }, { status: 201 });
+  return NextResponse.json({ approvalStatus: "pending", requiresEmailVerification: false }, { status: 201 });
 }

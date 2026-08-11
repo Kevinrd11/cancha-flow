@@ -58,7 +58,7 @@ export async function proxy(request: NextRequest) {
       .limit(1)
       .maybeSingle();
     const canManageBusiness = Boolean(membership && ["owner", "staff"].includes(membership.role));
-    const ownerOnlyPath = request.nextUrl.pathname.startsWith("/admin/configuracion") || request.nextUrl.pathname.startsWith("/admin/canchas");
+    const ownerOnlyPath = ["/admin/configuracion", "/admin/canchas", "/admin/finanzas"].some((path) => request.nextUrl.pathname.startsWith(path));
     if ((!profile || !profile.active || (isPlatform && !isPlatformAdmin) || (!isPlatform && !isLogin && (!canManageBusiness || isPlatformAdmin))) && !isLogin) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = isPlatformAdmin ? "/plataforma" : "/admin/login";

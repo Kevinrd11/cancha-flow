@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { emailAddressSchema, passwordSchema } from "@/lib/auth/validation";
 import { RESERVATION_DURATION_OPTIONS } from "@/lib/constants";
-import { reservationStatuses } from "@/lib/types";
+import { paymentMethods, paymentStatuses, reservationStatuses } from "@/lib/types";
 
 const phone = z
   .string()
@@ -43,11 +43,15 @@ export const reservationUpdateSchema = z
   .object({
     id: z.string().uuid(),
     status: z.enum(reservationStatuses).optional(),
-    paymentStatus: z.enum(["unpaid", "pending", "approved", "rejected", "refunded"]).optional(),
+    paymentStatus: z.enum(paymentStatuses).optional(),
     date: z.iso.date().optional(),
     startTime: hourlyTime().optional(),
     endTime: hourlyTime().optional(),
     notes: z.string().trim().max(1000).optional(),
+    // Cobro de la reserva. El saldo pendiente no se envía: siempre es
+    // total - amountPaid, y el total lo calcula la base de datos.
+    amountPaid: z.number().min(0, "El monto cobrado no puede ser negativo").max(1_000_000_000).optional(),
+    paymentMethod: z.enum(paymentMethods).optional(),
   })
   .strict();
 

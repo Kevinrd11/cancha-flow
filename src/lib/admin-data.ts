@@ -13,7 +13,7 @@ export async function getAdminReservations(): Promise<Reservation[]> {
     if (auth.demo) return [...demoReservations];
     const query = auth.supabase
       .from("reservations")
-      .select("id, business_id, field_id, reservation_code, reservation_date, start_time, end_time, status, payment_status, total, source, notes, customers(full_name, phone, email), fields(name)")
+      .select("id, business_id, field_id, reservation_code, reservation_date, start_time, end_time, status, payment_status, total, amount_paid, payment_method, paid_at, source, notes, customers(full_name, phone, email), fields(name)")
       .order("reservation_date")
       .order("start_time")
       .eq("business_id", auth.businessId);
@@ -36,6 +36,9 @@ export async function getAdminReservations(): Promise<Reservation[]> {
         status: item.status,
         paymentStatus: item.payment_status,
         total: Number(item.total),
+        amountPaid: Number(item.amount_paid ?? 0),
+        paymentMethod: item.payment_method ?? undefined,
+        paidAt: item.paid_at ?? undefined,
         source: item.source,
         notes: item.notes ?? undefined,
         businessId: item.business_id,

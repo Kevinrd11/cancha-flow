@@ -78,7 +78,15 @@ supabase/migrations/20260721000170_local_football_mvp.sql
 supabase/migrations/20260722000180_auth_hardening.sql
 supabase/migrations/20260722000190_multitenant_field_slugs.sql
 supabase/migrations/20260722000200_pending_reservations_block_slots.sql
+supabase/migrations/20260806000210_public_field_settings.sql
+supabase/migrations/20260806000220_hourly_slots.sql
+supabase/migrations/20260811000230_finance_enums.sql
+supabase/migrations/20260811000240_finance_module.sql
 ```
+
+Los dos archivos de finanzas van separados a propósito: Postgres no permite usar un
+valor de enum en la misma transacción en la que se agrega, así que
+`20260811000230_finance_enums.sql` debe confirmarse antes de ejecutar el resto.
 
 `supabase/seed.sql` contiene datos de demostración y debe usarse únicamente en desarrollo local, nunca en producción.
 

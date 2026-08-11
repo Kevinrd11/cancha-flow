@@ -54,6 +54,25 @@ export async function getBusinessSettings(): Promise<BusinessSettings> {
   };
 }
 
+/**
+ * Moneda y zona horaria del negocio. Existe aparte de getBusinessSettings
+ * porque las rutas de finanzas solo necesitan esto y no las tres consultas
+ * completas de configuración.
+ */
+export async function getBusinessLocale(): Promise<{ currency: string; timezone: string }> {
+  const fallback = { currency: DEFAULT_SETTINGS.currency, timezone: DEFAULT_SETTINGS.timezone };
+  if (isDemoMode()) return fallback;
+  try {
+    const auth = await requireBusinessPermission("business:read");
+    if (!auth) return fallback;
+    if (auth.demo) return fallback;
+    const { data } = await auth.supabase.from("businesses").select("currency, timezone").eq("id", auth.businessId).single();
+    return { currency: data?.currency ?? fallback.currency, timezone: data?.timezone ?? fallback.timezone };
+  } catch {
+    return fallback;
+  }
+}
+
 export async function getAdminCourt(): Promise<Court> {
   if (isDemoMode()) {
     return {

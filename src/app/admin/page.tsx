@@ -5,12 +5,17 @@ import { ArrowRight, CalendarCheck, CircleDollarSign, Clock3, Settings2, Sparkle
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAdminReservations } from "@/lib/admin-data";
+import { requireFinance } from "@/lib/admin-auth";
 import { getBusinessSettings } from "@/lib/business-data";
+import { getFinanceOverview } from "@/lib/finance-data";
 import { formatCurrency, formatTime, todayInCostaRica } from "@/lib/utils";
 
 export default async function AdminDashboard() {
   const [reservations, settings] = await Promise.all([getAdminReservations(), getBusinessSettings()]);
   const today = todayInCostaRica();
+  // El dinero sale del mismo resumen que alimenta Finanzas, para que las dos
+  // pantallas nunca muestren cifras distintas. El personal operativo no lo ve.
+  const finance = (await requireFinance()) ? await getFinanceOverview({ period: "month" }, settings.timezone) : null;
   const active = reservations.filter((item) => !["cancelled", "expired"].includes(item.status));
   const todayReservations = active.filter((item) => item.date === today);
   const pending = reservations.filter((item) => item.status === "pending");
@@ -20,8 +25,7 @@ export default async function AdminDashboard() {
   const occupiedMinutes = todayReservations.reduce((sum, item) => sum + toMinutes(item.endTime) - toMinutes(item.startTime), 0);
   const capacityMinutes = Math.max(0, toMinutes(settings.closingTime) - toMinutes(settings.openingTime));
   const freeHours = Math.max(0, (capacityMinutes - occupiedMinutes) / 60);
-  const dayIncome = todayReservations.filter((item) => ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total, 0);
-  const monthIncome = reservations.filter((item) => item.date.startsWith(today.slice(0, 7)) && ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total, 0);
+  const dayIncome = finance?.series.find((point) => point.bucket === today)?.collected ?? 0;
 
   return <main>
     <AdminPageHeader eyebrow={format(new Date(`${today}T12:00:00`), "EEEE d 'de' MMMM", { locale: es })} title="Resumen" description={`Lo importante de ${settings.fieldName}, sin ruido.`} actions={<Link href="/admin/calendario" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green px-4 font-bold text-white">Nueva reserva <ArrowRight size={17} /></Link>} />
@@ -32,7 +36,9 @@ export default async function AdminDashboard() {
         <Metric icon={Clock3} label="Próxima reserva" value={nextReservation ? formatTime(nextReservation.startTime) : "Sin reservas"} helper={nextReservation?.customerName ?? "Agenda libre"} />
         <Metric icon={TriangleAlert} label="Pendientes" value={String(pending.length)} helper="Por confirmar" alert={pending.length > 0} />
         <Metric icon={Clock3} label="Horas libres hoy" value={`${freeHours % 1 ? freeHours.toFixed(1) : freeHours} h`} helper={`${settings.openingTime} – ${settings.closingTime}`} />
-        <Metric icon={CircleDollarSign} label="Ingreso estimado" value={formatCurrency(dayIncome, settings.currency)} helper={`${formatCurrency(monthIncome, settings.currency)} este mes`} />
+        {finance
+          ? <Link href="/admin/finanzas" className="rounded-2xl focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-forest"><Metric icon={CircleDollarSign} label="Cobrado hoy" value={formatCurrency(dayIncome, settings.currency)} helper={`${formatCurrency(finance.totals.collected, settings.currency)} este mes · ${formatCurrency(finance.totals.pending, settings.currency)} por cobrar`} /></Link>
+          : <Metric icon={CalendarCheck} label="Confirmadas hoy" value={String(todayReservations.filter((item) => item.status === "confirmed").length)} helper="De las reservas de hoy" />}
       </section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">

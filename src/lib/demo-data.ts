@@ -1,6 +1,8 @@
 import { addDays, format } from "date-fns";
 import { ACTIVE_RESERVATION_STATUSES, SLOT_INTERVAL_MINUTES } from "@/lib/constants";
 import { getCourtById } from "@/lib/courts-data";
+import { transactionForReservation } from "@/lib/finance/reservation";
+import type { FinanceTransaction } from "@/lib/finance/types";
 import type { Reservation, ReservationStatus, TimeSlot } from "@/lib/types";
 import { formatTime, minutesToTime, timeToMinutes, todayInCostaRica } from "@/lib/utils";
 import { intervalsOverlap } from "@/lib/overlap";
@@ -18,8 +20,10 @@ export const demoReservations: Reservation[] = [
     startTime: "18:00",
     endTime: "19:00",
     status: "confirmed",
-    paymentStatus: "unpaid",
+    paymentStatus: "approved",
     total: 18000,
+    amountPaid: 18000,
+    paymentMethod: "sinpe",
     source: "website",
     businessId: "00000000-0000-4000-8000-000000000010",
     courtId: "00000000-0000-4000-8000-000000000001",
@@ -36,6 +40,7 @@ export const demoReservations: Reservation[] = [
     status: "pending",
     paymentStatus: "unpaid",
     total: 18000,
+    amountPaid: 0,
     source: "website",
     businessId: "00000000-0000-4000-8000-000000000010",
     courtId: "00000000-0000-4000-8000-000000000001",
@@ -50,8 +55,10 @@ export const demoReservations: Reservation[] = [
     startTime: "19:00",
     endTime: "20:00",
     status: "confirmed",
-    paymentStatus: "unpaid",
+    paymentStatus: "partial",
     total: 18000,
+    amountPaid: 9000,
+    paymentMethod: "cash",
     source: "phone",
     businessId: "00000000-0000-4000-8000-000000000010",
     courtId: "00000000-0000-4000-8000-000000000001",
@@ -158,8 +165,9 @@ export function createDemoReservation(input: DemoReservationInput) {
     startTime: input.startTime,
     endTime: input.endTime,
     status: input.status ?? "pending",
-    paymentStatus: "unpaid",
+    paymentStatus: input.status === "confirmed" ? "approved" : "unpaid",
     total: (court.hourlyRate * duration) / 60,
+    amountPaid: input.status === "confirmed" ? (court.hourlyRate * duration) / 60 : 0,
     source: input.source ?? "website",
     notes: input.notes,
     businessId: court.businessId,
@@ -170,16 +178,26 @@ export function createDemoReservation(input: DemoReservationInput) {
   return reservation;
 }
 
+export function getDemoReservation(id: string) {
+  return demoReservations.find((item) => item.id === id) ?? null;
+}
+
 export function updateDemoReservation(
   id: string,
-  changes: Partial<Pick<Reservation, "status" | "paymentStatus" | "date" | "startTime" | "endTime" | "notes">>,
+  changes: Partial<Pick<Reservation, "status" | "paymentStatus" | "date" | "startTime" | "endTime" | "notes" | "amountPaid" | "paymentMethod" | "paidAt">>,
 ) {
   const index = demoReservations.findIndex((item) => item.id === id);
   if (index < 0) throw new Error("Reserva inexistente");
   const definedChanges = Object.fromEntries(
     Object.entries(changes).filter(([, value]) => value !== undefined),
   ) as typeof changes;
-  demoReservations[index] = { ...demoReservations[index], ...definedChanges };
+  const updated = { ...demoReservations[index], ...definedChanges };
+  // Igual que en la ruta real: el estado del pago se deduce de lo cobrado.
+  if (changes.amountPaid !== undefined && changes.paymentStatus === undefined) {
+    updated.paymentStatus = updated.amountPaid >= updated.total && updated.total > 0 ? "approved" : updated.amountPaid > 0 ? "partial" : "unpaid";
+    updated.paidAt = updated.amountPaid > 0 ? new Date().toISOString() : undefined;
+  }
+  demoReservations[index] = updated;
   return demoReservations[index];
 }
 
@@ -210,5 +228,49 @@ export function deleteDemoBlockedSlot(id: string) {
   const index = demoBlockedSlots.findIndex((item) => item.id === id);
   if (index === -1) return false;
   demoBlockedSlots.splice(index, 1);
+  return true;
+}
+
+// Finanzas en modo demo. Los ingresos de reserva no se guardan: se derivan de
+// demoReservations en cada lectura, igual que el trigger de Postgres los deriva
+// de public.reservations. Solo los movimientos manuales tienen estado propio.
+const demoManualTransactions: FinanceTransaction[] = [
+  {
+    id: "3f0f6bd2-2c1a-4a53-9a5c-2e0a1f2b7c11",
+    type: "expense",
+    source: "manual",
+    category: "utilities",
+    description: "Recibo de electricidad",
+    amount: 42000,
+    amountPaid: 42000,
+    paymentMethod: "transfer",
+    paymentStatus: "paid",
+    date: `${baseDate.slice(0, 7)}-05`,
+  },
+];
+
+export function getDemoFinanceTransactions(): FinanceTransaction[] {
+  return [...demoReservations.map(transactionForReservation), ...demoManualTransactions].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
+}
+
+export function createDemoFinanceTransaction(input: Omit<FinanceTransaction, "id" | "source">) {
+  const created: FinanceTransaction = { ...input, id: crypto.randomUUID(), source: "manual" };
+  demoManualTransactions.unshift(created);
+  return created;
+}
+
+export function updateDemoFinanceTransaction(id: string, changes: Omit<FinanceTransaction, "id" | "source">) {
+  const index = demoManualTransactions.findIndex((item) => item.id === id);
+  if (index < 0) throw new Error("Movimiento inexistente");
+  demoManualTransactions[index] = { ...changes, id, source: "manual" };
+  return demoManualTransactions[index];
+}
+
+export function deleteDemoFinanceTransaction(id: string) {
+  const index = demoManualTransactions.findIndex((item) => item.id === id);
+  if (index < 0) return false;
+  demoManualTransactions.splice(index, 1);
   return true;
 }

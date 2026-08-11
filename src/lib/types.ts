@@ -10,7 +10,14 @@ export const reservationStatuses = [
 ] as const;
 
 export type ReservationStatus = (typeof reservationStatuses)[number];
-export type PaymentStatus = "unpaid" | "pending" | "approved" | "rejected" | "refunded";
+
+export const paymentStatuses = ["unpaid", "pending", "partial", "approved", "rejected", "refunded"] as const;
+export type PaymentStatus = (typeof paymentStatuses)[number];
+
+/** Formas en las que el negocio recibe el dinero de una reserva. */
+export const paymentMethods = ["cash", "sinpe", "transfer", "card", "other"] as const;
+export type PaymentMethod = (typeof paymentMethods)[number];
+
 export type ReservationSource = "website" | "whatsapp" | "phone" | "walk_in" | "admin";
 export type AvailabilityState = "available" | "pending" | "reserved" | "blocked";
 
@@ -72,6 +79,10 @@ export type Reservation = {
   status: ReservationStatus;
   paymentStatus: PaymentStatus;
   total: number;
+  /** Dinero ya recibido. El saldo pendiente siempre es total - amountPaid. */
+  amountPaid: number;
+  paymentMethod?: PaymentMethod;
+  paidAt?: string;
   source: ReservationSource;
   notes?: string;
   businessId?: string;

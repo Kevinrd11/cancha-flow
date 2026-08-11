@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { addMinutesToTime, sanitizeText } from "@/lib/utils";
 import { adminReservationSchema, reservationUpdateSchema } from "@/lib/validation";
-import { createDemoReservation, updateDemoReservation } from "@/lib/demo-data";
+import { createDemoReservation, getDemoReservation, updateDemoReservation } from "@/lib/demo-data";
 import { hasTrustedOrigin } from "@/lib/auth/request-security";
+import type { requireAdmin as RequireAdmin } from "@/lib/admin-auth";
 
 const CONFLICT_CODES = ["23P01", "P0001"];
 const isConflict = (code?: string) => Boolean(code && CONFLICT_CODES.includes(code));
+
+type AdminSupabase = Extract<NonNullable<Awaited<ReturnType<typeof RequireAdmin>>>, { demo: false }>["supabase"];
+
+/** `null` cuando la reserva no existe o pertenece a otro negocio. */
+async function readReservationTotal(supabase: AdminSupabase, id: string, businessId: string | null) {
+  const { data, error } = await supabase.from("reservations").select("total").eq("id", id).eq("business_id", businessId).single();
+  return error || !data ? null : Number(data.total);
+}
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
@@ -68,26 +77,40 @@ export async function PATCH(request: Request) {
   if (!auth) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const parsed = reservationUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
+  const { id, status, paymentStatus, date, startTime, endTime, notes, amountPaid, paymentMethod } = parsed.data;
+
+  // El cobro se registra aquí, no en Finanzas: el total sale de la base de datos
+  // y el estado del pago se deduce de cuánto se recibió, así que el cliente no
+  // puede inventarse ni el monto ni el estado. El trigger de la base propaga el
+  // cambio al libro financiero.
+  let resolvedPaymentStatus = paymentStatus;
+  if (amountPaid !== undefined) {
+    const total = auth.demo
+      ? getDemoReservation(id)?.total ?? null
+      : await readReservationTotal(auth.supabase, id, auth.businessId);
+    if (total === null) return NextResponse.json({ error: "Reserva inexistente" }, { status: 404 });
+    if (amountPaid > total) return NextResponse.json({ error: "El monto cobrado no puede superar el total de la reserva" }, { status: 400 });
+    if (!resolvedPaymentStatus) resolvedPaymentStatus = amountPaid >= total && total > 0 ? "approved" : amountPaid > 0 ? "partial" : "unpaid";
+  }
+
   if (auth.demo) {
     try {
-      updateDemoReservation(parsed.data.id, {
-        status: parsed.data.status,
-        paymentStatus: parsed.data.paymentStatus,
-        date: parsed.data.date,
-        startTime: parsed.data.startTime,
-        endTime: parsed.data.endTime,
-        notes: parsed.data.notes,
-      });
+      updateDemoReservation(id, { status, paymentStatus: resolvedPaymentStatus, date, startTime, endTime, notes, amountPaid, paymentMethod });
       return NextResponse.json({ ok: true, demo: true });
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo actualizar" }, { status: 404 });
     }
   }
 
-  const { id, status, paymentStatus, date, startTime, endTime, notes } = parsed.data;
-  const changes: Record<string, string | null> = {};
-  if (paymentStatus) {
-    const { error: reviewError } = await auth.supabase.rpc("review_reservation_payment", { p_reservation_id: id, p_payment_status: paymentStatus, p_reservation_status: status ?? null });
+  const changes: Record<string, string | number | null> = {};
+  if (paymentMethod !== undefined) changes.payment_method = paymentMethod;
+  if (amountPaid !== undefined) {
+    changes.amount_paid = amountPaid;
+    changes.paid_at = amountPaid > 0 ? new Date().toISOString() : null;
+  }
+
+  if (resolvedPaymentStatus) {
+    const { error: reviewError } = await auth.supabase.rpc("review_reservation_payment", { p_reservation_id: id, p_payment_status: resolvedPaymentStatus, p_reservation_status: status ?? null });
     if (reviewError) return NextResponse.json({ error: "No se pudo revisar el pago" }, { status: 500 });
   } else if (status) changes.status = status;
   if (date || startTime || endTime) {

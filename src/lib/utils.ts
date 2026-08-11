@@ -43,13 +43,18 @@ export function formatTime(time: string) {
   }).format(new Date(2026, 0, 1, hours, minutes));
 }
 
-export function todayInCostaRica() {
+/** Fecha "YYYY-MM-DD" del día que está viviendo el negocio, no la del servidor. */
+export function todayInTimezone(timeZone: string) {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Costa_Rica",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+}
+
+export function todayInCostaRica() {
+  return todayInTimezone("America/Costa_Rica");
 }
 
 export function currentTimeInCostaRica() {

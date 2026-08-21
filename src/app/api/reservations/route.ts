@@ -4,7 +4,7 @@ import { reservationSchema } from "@/lib/validation";
 import { hasSupabaseAdminEnv, hasSupabaseEnv } from "@/lib/supabase/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { createDemoReservation } from "@/lib/demo-data";
-import { hasTrustedOrigin } from "@/lib/auth/request-security";
+import { enforceAuthRateLimit, hasTrustedOrigin } from "@/lib/auth/request-security";
 
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Origen de solicitud inválido" }, { status: 403 });
@@ -44,6 +44,22 @@ export async function POST(request: Request) {
   }
   if (!hasSupabaseAdminEnv()) {
     return NextResponse.json({ error: "Falta configurar la clave privada del servidor" }, { status: 503 });
+  }
+
+  // Endpoint anónimo: sin límite, cualquiera puede llenar la agenda de un
+  // centro con solicitudes falsas. Se acota por IP, sin sujeto, porque el
+  // teléfono lo elige quien envía la solicitud.
+  let rateLimit;
+  try {
+    rateLimit = await enforceAuthRateLimit(request, "reservation");
+  } catch {
+    return NextResponse.json({ error: "No pudimos crear la reserva. Intenta de nuevo." }, { status: 503 });
+  }
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes desde esta conexión. Espera antes de volver a intentarlo." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } },
+    );
   }
 
   try {

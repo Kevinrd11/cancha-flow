@@ -2,11 +2,16 @@ import { createHmac } from "node:crypto";
 import { getAppUrl, hasSupabaseAdminEnv } from "@/lib/supabase/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
-export type AuthRateLimitAction = "register" | "recovery";
+export type AuthRateLimitAction = "register" | "recovery" | "login" | "reservation";
 
 const limits: Record<AuthRateLimitAction, { attempts: number; windowSeconds: number }> = {
   register: { attempts: 5, windowSeconds: 60 * 60 },
   recovery: { attempts: 3, windowSeconds: 60 * 60 },
+  // Frena la fuerza bruta sin castigar a quien se equivoca un par de veces.
+  login: { attempts: 10, windowSeconds: 15 * 60 },
+  // La reserva pública es anónima: sin límite, cualquiera llena la agenda de
+  // un centro con solicitudes falsas. Solo se acota por IP, no por persona.
+  reservation: { attempts: 10, windowSeconds: 60 * 60 },
 };
 
 function firstForwardedValue(value: string | null) {

@@ -56,6 +56,9 @@ export function ReservationFlow({
   const [created, setCreated] = useState<CreatedReservation | null>(null);
   const [customer, setCustomer] = useState({ fullName: "", phone: "", email: "" });
   const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  // Se incrementa para volver a consultar la disponibilidad cuando el horario
+  // elegido se ocupó mientras el visitante llenaba sus datos.
+  const [availabilityToken, setAvailabilityToken] = useState(0);
 
   const dates = useMemo(
     () =>
@@ -85,7 +88,7 @@ export function ReservationFlow({
         if (!controller.signal.aborted) setLoadingSlots(false);
       });
     return () => controller.abort();
-  }, [date, settings.fieldId]);
+  }, [date, settings.fieldId, availabilityToken]);
 
   const displaySlots = useMemo(() => getDisplayTimeSlots(slots, duration), [duration, slots]);
   const hasSelectableSlots = displaySlots.some((slot) => slot.selectable);
@@ -114,7 +117,18 @@ export function ReservationFlow({
         body: JSON.stringify(parsed.data),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "No pudimos enviar la reserva");
+      if (!response.ok) {
+        // 409 significa que ese horario se ocupó mientras el visitante llenaba
+        // sus datos. Sin recargar, la parrilla seguiría ofreciéndolo y el
+        // siguiente intento fallaría igual.
+        if (response.status === 409) {
+          setStartTime("");
+          setLoadingSlots(true);
+          setAvailabilityToken((current) => current + 1);
+          setStep("schedule");
+        }
+        throw new Error(payload.error ?? "No pudimos enviar la reserva");
+      }
       setCreated(payload);
       setStep("success");
     } catch (requestError) {
@@ -237,7 +251,7 @@ export function ReservationFlow({
 
           {step === "details" && (
             <>
-              <button onClick={() => setStep("schedule")} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink"><ArrowLeft size={17} /> Cambiar horario</button>
+              <button onClick={() => { setError(""); setStep("schedule"); }} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink"><ArrowLeft size={17} /> Cambiar horario</button>
               <h3 className="text-2xl font-bold text-navy">¿A nombre de quién?</h3>
               <p className="mt-2 text-muted">No necesita crear una cuenta. La cancha usará estos datos para confirmar.</p>
               <div className="mt-7 grid gap-5">

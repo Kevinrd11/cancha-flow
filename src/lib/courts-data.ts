@@ -183,7 +183,7 @@ export function courtToSettings(court: CourtListing): BusinessSettings {
     openingTime: court.openingTime,
     closingTime: court.closingTime,
     minimumMinutes: court.reservationMinutes,
-    holdMinutes: 20,
+    holdMinutes: 1440,
     cancellationPolicy: "Puede cancelar o reprogramar contactando directamente a la cancha con al menos 24 horas de anticipación.",
     nonWorkingDays: [],
   };

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { destinationForRole, type ProfileRole } from "@/lib/auth/permissions";
 import { recordSecurityEvent } from "@/lib/auth/audit";
-import { getRequestFingerprint, hasTrustedOrigin } from "@/lib/auth/request-security";
+import { enforceAuthRateLimit, getRequestFingerprint, hasTrustedOrigin } from "@/lib/auth/request-security";
 import { loginSchema } from "@/lib/auth/validation";
 import { hasSupabaseEnv, isDemoMode } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -21,6 +21,23 @@ export async function POST(request: Request) {
     requestFingerprint = getRequestFingerprint(request, parsed.data.email);
   } catch {
     // El acceso no se bloquea si la huella de auditoría no está disponible.
+  }
+
+  // Sin esto, Supabase Auth es la única barrera contra la fuerza bruta. Se
+  // cuenta por IP y por correo: así un atacante no evade el límite rotando
+  // cuentas, ni satura a un usuario concreto desde muchas direcciones.
+  let rateLimit;
+  try {
+    rateLimit = await enforceAuthRateLimit(request, "login", parsed.data.email);
+  } catch {
+    return NextResponse.json({ error: "El servicio de acceso no está disponible" }, { status: 503 });
+  }
+  if (!rateLimit.allowed) {
+    await recordSecurityEvent({ action: "auth.login", outcome: "blocked", requestFingerprint: rateLimit.fingerprint });
+    return NextResponse.json(
+      { error: "Demasiados intentos de acceso. Espera antes de volver a intentarlo." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } },
+    );
   }
 
   const supabase = await createServerSupabaseClient();

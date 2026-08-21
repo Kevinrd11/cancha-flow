@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: BusinessSettings = {
   openingTime: "08:00",
   closingTime: "23:00",
   minimumMinutes: 60,
-  holdMinutes: 20,
+  holdMinutes: 1440,
   cancellationPolicy:
     "Puedes reprogramar sin costo con al menos 24 horas de anticipación.",
   nonWorkingDays: [],

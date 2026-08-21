@@ -151,7 +151,7 @@ export async function getBusinessBySlug(slug: string): Promise<{ business: Busin
           openingTime: settings?.openingTime ?? "08:00",
           closingTime: settings?.closingTime ?? "22:00",
           minimumMinutes: settings?.minimumMinutes ?? court.reservationMinutes,
-          holdMinutes: 20,
+          holdMinutes: 1440,
           cancellationPolicy: "Las cancelaciones se coordinan directamente con el centro deportivo.",
           nonWorkingDays: [],
         } satisfies BusinessSettings];

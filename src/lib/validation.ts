@@ -56,6 +56,9 @@ export const reservationUpdateSchema = z
   .strict();
 
 export const settingsSchema = z.object({
+  // Cancha a la que aplican el nombre, el precio y el horario. Opcional por
+  // compatibilidad: sin ella se configura la primera cancha del negocio.
+  fieldId: z.string().uuid("Seleccione una cancha válida").optional(),
   businessName: z.string().trim().min(2, "Escriba el nombre del centro").max(100, "El nombre es demasiado largo"),
   description: z.string().trim().min(10, "La descripción debe tener al menos 10 caracteres").max(1200, "La descripción es demasiado larga"),
   location: z.string().trim().min(3, "Escriba la ubicación del centro").max(240, "La ubicación es demasiado larga"),
@@ -69,7 +72,9 @@ export const settingsSchema = z.object({
   openingTime: hourlyTime("La apertura debe ser una hora en punto"),
   closingTime: hourlyTime("El cierre debe ser una hora en punto"),
   minimumMinutes: hourlyDuration("La duración mínima es de 1 o 2 horas"),
-  holdMinutes: z.number().int().min(5, "El tiempo de reserva debe ser al menos 5 minutos").max(180, "El tiempo de reserva no puede superar 180 minutos"),
+  // Tiempo que tiene el propietario para responder una solicitud antes de que
+  // el horario se libere solo. En minutos, entre 1 hora y 3 días.
+  holdMinutes: z.number().int().min(60, "El plazo para responder debe ser de al menos 1 hora").max(4320, "El plazo para responder no puede superar 3 días"),
   cancellationPolicy: z.string().trim().min(10, "Escriba una política de cancelación de al menos 10 caracteres").max(2000, "La política de cancelación es demasiado larga"),
   nonWorkingDays: z.array(z.iso.date()).max(100).default([]),
 }).strict();

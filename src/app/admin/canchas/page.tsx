@@ -2,14 +2,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { CircleDollarSign, Clock3, ExternalLink, ImageIcon, MapPin, Users } from "lucide-react";
 import { CourtProfileForm } from "@/components/admin/court-profile-form";
+import { CourtSwitcher } from "@/components/admin/court-switcher";
+import { NewCourtForm } from "@/components/admin/new-court-form";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { getAdminCourt, getBusinessSettings } from "@/lib/business-data";
+import { getAdminCourt, getBusinessCourts, getBusinessSettings } from "@/lib/business-data";
 import { ALLOWED_EXTERNAL_IMAGE_HOSTS, isAllowedImageUrl } from "@/lib/images";
 import { formatCurrency } from "@/lib/utils";
 
-export default async function CourtPage() {
-  const [settings, court] = await Promise.all([getBusinessSettings(), getAdminCourt()]);
+export default async function CourtPage({ searchParams }: PageProps<"/admin/canchas">) {
+  const courts = await getBusinessCourts();
+  // La cancha del querystring solo se acepta si pertenece al negocio; si no,
+  // se cae a la primera en vez de dar error.
+  const requested = (await searchParams).cancha;
+  const selectedId = courts.find((item) => item.id === requested)?.id;
+  const [settings, court] = await Promise.all([
+    getBusinessSettings(selectedId),
+    getAdminCourt(selectedId),
+  ]);
   const publicPath = `/centro/${settings.businessSlug}?court=${court.id}`;
   // La URL guardada se conserva en el formulario para que el propietario pueda
   // corregirla, pero no se le entrega a next/image si el origen no está
@@ -17,14 +27,18 @@ export default async function CourtPage() {
   const usableImage = isAllowedImageUrl(court.imageUrl) ? court.imageUrl : null;
   const hasUnusableImage = Boolean(court.imageUrl) && !usableImage;
   return <main>
-    <AdminPageHeader eyebrow="Publicación" title="Mi cancha" description="Así se presenta su cancha a los jugadores." actions={<Link href={publicPath} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 font-bold text-navy">Ver publicación <ExternalLink size={17} /></Link>} />
-    <div className="p-4 sm:p-7 lg:p-9"><article className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-line bg-white">
+    <AdminPageHeader eyebrow="Publicación" title={courts.length > 1 ? "Mis canchas" : "Mi cancha"} description="Así se presenta su cancha a los jugadores." actions={<Link href={publicPath} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 font-bold text-navy">Ver publicación <ExternalLink size={17} /></Link>} />
+    <div className="p-4 sm:p-7 lg:p-9">
+      <div className="mx-auto max-w-5xl"><CourtSwitcher courts={courts} selectedId={court.id} basePath="/admin/canchas" /></div>
+      <article className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-line bg-white">
       <div className="relative h-64 bg-forest sm:h-96">{usableImage ? <Image src={usableImage} alt={court.name} fill sizes="(min-width: 1024px) 900px, 100vw" className="object-cover" /> : <div className="grid h-full place-items-center text-center text-white/65"><div><ImageIcon className="mx-auto" size={44} /><p className="mt-3 font-semibold">Agregue la primera fotografía de su cancha</p></div></div>}<div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" /><div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-4"><div className="text-white"><p className="text-sm text-white/70">{settings.location}</p><h2 className="text-3xl font-bold sm:text-4xl">{court.name}</h2></div><StatusBadge status={court.active ? "active" : "suspended"} /></div></div>
       <div className="p-5 sm:p-8"><p className="max-w-3xl text-lg leading-8 text-slate-600">{court.description || "Todavía no ha agregado una descripción para esta cancha."}</p><div className="mt-7 grid grid-cols-2 gap-3 border-y border-line py-6 sm:grid-cols-4"><Info icon={CircleDollarSign} label="Precio" value={formatCurrency(court.hourlyRate, settings.currency)} /><Info icon={Clock3} label="Horario" value={`${settings.openingTime} – ${settings.closingTime}`} /><Info icon={Users} label="Capacidad" value={`${court.capacity} jugadores`} /><Info icon={MapPin} label="Ubicación" value={settings.location} /></div>
         {hasUnusableImage && <p role="alert" className="mt-7 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">El enlace guardado no proviene de un origen permitido, así que su cancha se publica sin fotografía. Suba la foto desde su dispositivo o use una dirección de {ALLOWED_EXTERNAL_IMAGE_HOSTS.join(" o ")}.</p>}
         <CourtProfileForm court={court} location={settings.location} />
       </div>
-    </article></div>
+    </article>
+      <div className="mx-auto mt-6 max-w-5xl"><NewCourtForm /></div>
+    </div>
   </main>;
 }
 

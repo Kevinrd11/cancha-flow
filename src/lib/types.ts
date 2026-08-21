@@ -61,6 +61,22 @@ export type Court = {
   imageUrl?: string;
 };
 
+/**
+ * Cancha vista desde los selectores del panel: identidad más el precio y el
+ * horario que necesitan el calendario, el resumen y la página de horarios para
+ * trabajar con varias canchas a la vez.
+ */
+export type BusinessCourtOption = {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  hourlyRate: number;
+  openingTime: string;
+  closingTime: string;
+  minimumMinutes: number;
+};
+
 export type TimeSlot = {
   time: string;
   label: string;

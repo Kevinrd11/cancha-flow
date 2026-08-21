@@ -13,7 +13,6 @@ export function MarketingHeader({ solid = false }: { solid?: boolean }) {
           <Link href="/">Inicio</Link>
           <Link href="/canchas">Buscar canchas</Link>
           <Link href="/#como-funciona">Cómo funciona</Link>
-          <Link href="/#propietarios">Para propietarios</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link href="/admin/login" className={`hidden min-h-10 items-center gap-2 px-2 text-sm font-bold sm:inline-flex ${solid ? "text-navy" : "text-white"}`}><LogIn size={16} /> Acceso propietarios</Link>

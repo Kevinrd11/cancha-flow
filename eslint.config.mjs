@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Artefactos generados por vitest --coverage: no son fuente del proyecto.
+    "coverage/**",
   ]),
 ]);
 

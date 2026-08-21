@@ -37,11 +37,14 @@ Con Supabase configurado:
 - cada Route Handler vuelve a validar sesión y pertenencia;
 - RLS aplica el aislamiento en PostgreSQL;
 - las sesiones se almacenan en cookies `HttpOnly`, `SameSite=Lax` y `Secure` en producción;
-- registro, login y recuperación tienen rate limiting distribuido;
+- registro, login, recuperación y la reserva pública tienen rate limiting distribuido;
 - los cambios de contraseña revocan las sesiones anteriores;
 - las funciones transaccionales usan bloqueo por cancha y fecha;
 - las restricciones de exclusión impiden reservas activas superpuestas;
-- una solicitud pública nace en estado `pending` y no exige pago en línea.
+- una solicitud pública nace en estado `pending` y no exige pago en línea;
+- una solicitud sin responder vence según `hold_minutes` y libera el horario;
+- `create_public_reservation` valida horario de atención, días cerrados y una
+  ventana máxima de 60 días de anticipación.
 
 La interfaz mensual/anual no procesa pagos ni almacena tarjetas. Ese punto queda preparado para una integración posterior.
 
@@ -82,6 +85,12 @@ supabase/migrations/20260806000210_public_field_settings.sql
 supabase/migrations/20260806000220_hourly_slots.sql
 supabase/migrations/20260811000230_finance_enums.sql
 supabase/migrations/20260811000240_finance_module.sql
+supabase/migrations/20260811000250_hourly_bounds_only_on_reschedule.sql
+supabase/migrations/20260811000260_court_images_bucket.sql
+supabase/migrations/20260811000270_business_account_approvals.sql
+supabase/migrations/20260818000280_reservation_hardening.sql
+supabase/migrations/20260818000290_multi_court.sql
+supabase/migrations/20260818000300_table_grants.sql
 ```
 
 Los dos archivos de finanzas van separados a propósito: Postgres no permite usar un
@@ -98,3 +107,20 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+Las pruebas de punta a punta necesitan Docker y una base local:
+
+```bash
+npx supabase start -x studio,imgproxy,pooler
+npx supabase db reset      # migraciones + datos de demostración
+eval "$(npx supabase status -o env)"                 # claves de la base local
+export E2E_SUPABASE_SECRET_KEY=${SECRET_KEY:-$SERVICE_ROLE_KEY}
+npm run e2e
+```
+
+La clave de servicio se exporta en vez de quedar escrita en el repositorio: aun
+siendo la de la base local, GitHub bloquea el push al reconocer su formato.
+
+Corren contra PostgreSQL real porque las reglas de solape, la expiración de
+solicitudes y RLS viven en la base. Preparan sus propios datos, así que se
+pueden repetir sin volver a sembrar.

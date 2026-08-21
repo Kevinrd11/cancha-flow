@@ -10,17 +10,20 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Los specs de e2e/ los corre Playwright, no Vitest.
+    exclude: ["node_modules/**", "e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/lib/**/*.ts", "src/app/api/**/*.ts"],
       exclude: ["**/*.test.ts", "src/lib/types.ts", "src/lib/*-data.ts", "src/lib/constants.ts"],
-      // Piso de regresión: refleja la línea base actual. Súbelo a medida que se agreguen tests.
+      // Piso de regresión: queda algunos puntos por debajo de la cobertura real
+      // para no romper el CI por un refactor menor. Súbelo al agregar tests.
       thresholds: {
-        statements: 40,
-        branches: 25,
-        functions: 40,
-        lines: 45,
+        statements: 72,
+        branches: 59,
+        functions: 71,
+        lines: 77,
       },
     },
   },

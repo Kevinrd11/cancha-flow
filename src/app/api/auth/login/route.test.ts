@@ -7,11 +7,17 @@ const state = vi.hoisted(() => ({
   profile: { role: "owner", active: true } as Record<string, unknown> | null,
   membership: { business_id: "20000000-0000-4000-8000-000000000001", role: "owner" } as Record<string, unknown> | null,
   signOut: vi.fn(),
+  rateLimitAllowed: true,
+  rateLimitThrows: false,
 }));
 
 vi.mock("@/lib/auth/request-security", () => ({
   hasTrustedOrigin: () => true,
   getRequestFingerprint: () => "a".repeat(64),
+  enforceAuthRateLimit: async () => {
+    if (state.rateLimitThrows) throw new Error("rate limit no disponible");
+    return { allowed: state.rateLimitAllowed, retryAfter: 900, fingerprint: "a".repeat(64) };
+  },
 }));
 vi.mock("@/lib/auth/audit", () => ({ recordSecurityEvent: vi.fn() }));
 vi.mock("@/lib/supabase/env", () => ({ hasSupabaseEnv: () => true, isDemoMode: () => false }));
@@ -39,7 +45,7 @@ function request() {
 }
 
 describe("POST /api/auth/login", () => {
-  beforeEach(() => { state.signInError = null; state.signInAttempts = 0; state.user = { id: "10000000-0000-4000-8000-000000000001", email_confirmed_at: "2026-01-01" }; state.profile = { role: "owner", active: true }; state.membership = { business_id: "20000000-0000-4000-8000-000000000001", role: "owner" }; state.signOut.mockClear(); });
+  beforeEach(() => { state.signInError = null; state.signInAttempts = 0; state.user = { id: "10000000-0000-4000-8000-000000000001", email_confirmed_at: "2026-01-01" }; state.profile = { role: "owner", active: true }; state.membership = { business_id: "20000000-0000-4000-8000-000000000001", role: "owner" }; state.signOut.mockClear(); state.rateLimitAllowed = true; state.rateLimitThrows = false; });
 
   it("inicia sesión y redirige al rol correcto", async () => {
     const response = await POST(request());
@@ -61,6 +67,22 @@ describe("POST /api/auth/login", () => {
     const responses = await Promise.all(Array.from({ length: 10 }, () => POST(request())));
     expect(responses.every((response) => response.status === 401)).toBe(true);
     expect(state.signInAttempts).toBe(10);
+  });
+
+  it("bloquea con 429 cuando se agota el límite de intentos", async () => {
+    state.rateLimitAllowed = false;
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("900");
+    // El límite debe cortar antes de tocar Supabase Auth.
+    expect(state.signInAttempts).toBe(0);
+  });
+
+  it("responde 503 si el servicio de rate limiting falla", async () => {
+    state.rateLimitThrows = true;
+    const response = await POST(request());
+    expect(response.status).toBe(503);
+    expect(state.signInAttempts).toBe(0);
   });
 
   it("explica a un propietario válido que su acceso aún no fue aprobado", async () => {
